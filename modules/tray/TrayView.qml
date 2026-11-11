@@ -1,18 +1,18 @@
 pragma ComponentBehavior: Bound
-// System tray (StatusNotifierItem). Left click activates (or opens the menu for menu-only
-// items), right click opens the menu, middle click is the secondary action.
+// System tray (StatusNotifierItem) as a compact icon row for the island header.
+// Left click activates (or opens the menu for menu-only items), right click opens the menu,
+// middle click is the secondary action, wheel scrolls.
 import QtQuick
 import Quickshell
 import Quickshell.Services.SystemTray
 import Quickshell.Widgets
 import qs.components
 
-Item {
+Row {
     id: root
 
     // While a tray menu is open the island must not collapse under it.
     readonly property bool menuOpen: menu.visible
-    property string hoveredTitle: ""
 
     // Some apps (Electron) report "name?path=/dir"; turn that into a file URL.
     function iconSource(icon: string): string {
@@ -28,74 +28,57 @@ Item {
         menu.open();
     }
 
+    spacing: 4
+
     QsMenuAnchor {
         id: menu
         anchor.edges: Edges.Bottom
         anchor.gravity: Edges.Bottom
     }
 
-    Column {
-        anchors.centerIn: parent
-        spacing: 10
+    Repeater {
+        model: SystemTray.items
 
-        Flow {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(implicitWidth, root.width)
-            spacing: 8
+        Rectangle {
+            id: tile
 
-            Repeater {
-                model: SystemTray.items
+            required property SystemTrayItem modelData
 
-                Rectangle {
-                    id: tile
+            width: 32
+            height: 32
+            radius: height / 2
+            color: area.containsMouse ? Theme.surfaceHover : "transparent"
 
-                    required property SystemTrayItem modelData
-
-                    width: 46
-                    height: 46
-                    radius: Theme.radiusMedium
-                    color: area.containsMouse ? Theme.surfaceHover : Theme.surfaceRaised
-
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: Theme.animFast
-                        }
-                    }
-
-                    IconImage {
-                        anchors.centerIn: parent
-                        implicitSize: 24
-                        source: root.iconSource(tile.modelData.icon)
-                    }
-
-                    MouseArea {
-                        id: area
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                        cursorShape: Qt.PointingHandCursor
-                        onContainsMouseChanged: root.hoveredTitle = containsMouse ? (tile.modelData.tooltipTitle || tile.modelData.title || tile.modelData.id) : ""
-                        onClicked: mouse => {
-                            const item = tile.modelData;
-                            if (mouse.button === Qt.MiddleButton)
-                                item.secondaryActivate();
-                            else if (mouse.button === Qt.RightButton || item.onlyMenu) {
-                                if (item.hasMenu)
-                                    root.openMenu(item, tile);
-                            } else
-                                item.activate();
-                        }
-                        onWheel: wheel => tile.modelData.scroll(wheel.angleDelta.y / 120, false)
-                    }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Theme.animFast
                 }
             }
-        }
 
-        StyledText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: SystemTray.items.values.length === 0 ? "No tray icons" : (root.hoveredTitle || " ")
-            color: Theme.textSecondary
-            font.pixelSize: Theme.fontSmall
+            IconImage {
+                anchors.centerIn: parent
+                implicitSize: 18
+                source: root.iconSource(tile.modelData.icon)
+            }
+
+            MouseArea {
+                id: area
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mouse => {
+                    const item = tile.modelData;
+                    if (mouse.button === Qt.MiddleButton)
+                        item.secondaryActivate();
+                    else if (mouse.button === Qt.RightButton || item.onlyMenu) {
+                        if (item.hasMenu)
+                            root.openMenu(item, tile);
+                    } else
+                        item.activate();
+                }
+                onWheel: wheel => tile.modelData.scroll(wheel.angleDelta.y / 120, false)
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
-// Expanded island (NotchNook-like): Nook / Tray tabs and a settings gear on top;
-// Nook = media card | week strip | notifications, Tray = system tray.
+// Expanded island (NotchNook-like). Header: Nook label, system tray icons, settings gear.
+// Body: media card | week strip | notifications.
 import QtQuick
 import QtQuick.Layouts
 import qs.components
@@ -12,13 +12,11 @@ import qs.modules.tray
 Item {
     id: root
 
-    property string tab: "nook"
     readonly property bool holdOpen: tray.menuOpen
 
     signal openPlayer
     signal openCalendar
     signal openSettings
-
 
     RowLayout {
         id: header
@@ -32,15 +30,12 @@ Item {
         TabButton {
             icon: "music"
             label: "Nook"
-            selected: root.tab === "nook"
-            onClicked: root.tab = "nook"
+            selected: true
         }
 
-        TabButton {
-            icon: "tray"
-            label: "Tray"
-            selected: root.tab === "tray"
-            onClicked: root.tab = "tray"
+        TrayView {
+            id: tray
+            Layout.leftMargin: 8
         }
 
         Item {
@@ -66,7 +61,6 @@ Item {
         RowLayout {
             anchors.fill: parent
             spacing: 18
-            visible: root.tab === "nook"
 
             MediaCard {
                 Layout.preferredWidth: 320
@@ -101,12 +95,6 @@ Item {
                 Layout.preferredWidth: 260
                 Layout.fillHeight: true
             }
-        }
-
-        TrayView {
-            id: tray
-            anchors.fill: parent
-            visible: root.tab === "tray"
         }
     }
 }

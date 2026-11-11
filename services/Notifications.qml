@@ -124,8 +124,11 @@ Singleton {
         onLoaded: {
             try {
                 const saved = JSON.parse(text());
+                // Images served by Quickshell (image://qsimage/…) die with the process that served them.
                 if (Array.isArray(saved))
-                    root.history = saved;
+                    root.history = saved.map(e => e.image?.startsWith("image://qsimage/") ? Object.assign(e, {
+                                image: ""
+                            }) : e);
             } catch (e) {
                 console.warn("notifications: bad history file", e);
             }

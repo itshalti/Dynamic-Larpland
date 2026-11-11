@@ -47,18 +47,10 @@ Rectangle {
         anchors.rightMargin: 16
         spacing: 14
 
-        Rectangle {
-            Layout.preferredWidth: 42
-            Layout.preferredHeight: 42
-            radius: 11
-            color: "#141416"
-
-            IconImage {
-                anchors.centerIn: parent
-                implicitSize: 28
-                source: Apps.icon(root.entry)
-                asynchronous: true
-            }
+        IconImage {
+            implicitSize: 40
+            source: Apps.icon(root.entry)
+            asynchronous: true
         }
 
         ColumnLayout {

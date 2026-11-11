@@ -4,7 +4,7 @@ A macOS Dynamic Island / NotchNook-style widget for Wayland compositors (Hyprlan
 compositor supported), built with [Quickshell](https://quickshell.org).
 
 - Collapsed: a black pill at the top of the screen showing the time.
-- Hover or click: smoothly expands into media controls, a calendar, notification history and the system tray.
+- Hover or click: smoothly expands into media controls, a calendar, notification history; tray icons sit in the header.
 - Full player with seek, a month calendar, a built-in notification daemon and an app launcher (`Super+Space`).
 
 > Work in progress. Calendar events and cava-driven visualizer aren't there yet.
@@ -17,15 +17,13 @@ Stop other notification daemons (mako, dunst, swaync) — Dynamic-Larpland is th
 
 ## Run
 ```bash
-qs -p /path/to/Dynamic-Larpland
+/path/to/Dynamic-Larpland/scripts/run.sh
 ```
-Or install it as a named config:
-```bash
-./scripts/install.sh
-qs -c dynamic-larpland
-```
-Autostart on Hyprland: `hl.exec_cmd("qs -c dynamic-larpland")` in `hl.on("hyprland.start", …)` (Lua config)
-or `exec-once = qs -c dynamic-larpland` (hyprlang).
+`run.sh` starts `qs -p <repo>` with your desktop icon theme (Quickshell only reads it from `QS_ICON_THEME`).
+It detects the theme from GNOME/GTK settings or qt6ct/qt5ct; override with `DYNAMIC_LARPLAND_ICON_THEME=<name>`.
+Themes are found in `~/.local/share/icons`, `~/.icons` and `/usr/share/icons`.
+Autostart on Hyprland: `hl.exec_cmd("/path/to/Dynamic-Larpland/scripts/run.sh")` in
+`hl.on("hyprland.start", …)` (Lua config) or `exec-once = /path/to/Dynamic-Larpland/scripts/run.sh` (hyprlang).
 
 ## Keybinds
 Change them in the island's settings (gear button). Default: `Super+Space` opens the launcher.

@@ -30,11 +30,11 @@ panel with media controls, a calendar, notification history, the system tray, se
 2. **Expand animation** — hover (short delay) or click expands; leaving the pointer / clicking outside / `Esc`
    collapses. Width, height and corner radius animate together (spring/OutBack-style easing); content cross-fades.
    Must feel smooth — never jump sizes without a `Behavior`.
-3. **Expanded view (NotchNook-like)** — header with tabs **Nook** / **Tray** and a small **gear** button top-right.
-   - *Nook*: media card (cover, title, album, artist, prev / play-pause / next, player app badge) │ week-strip
+3. **Expanded view (NotchNook-like)** — header: **Nook** label, the **system tray** icons right next to it
+   (StatusNotifierItem, with their menus; no separate Tray tab), and a small **gear** button top-right.
+   - Body: media card (cover, title, album, artist, prev / play-pause / next, player app badge) │ week-strip
      calendar (month name, days around today, today highlighted, "Nothing for today") │ notification/message history
      with app icons.
-   - *Tray*: system tray icons (StatusNotifierItem) with their menus.
 4. **Player view** — left-click on the media card morphs the island into the full player: cover, title/artist,
    progress bar with elapsed / remaining time and click/drag seek, prev / play-pause / next, visualizer. Supports
    multiple MPRIS players with switching.
@@ -98,6 +98,9 @@ Runtime files: `~/.config/dynamic-larpland/config.json`, `~/.config/dynamic-larp
   `pcall(dofile, "<config dir>/dynamic-larpland/binds.lua")`. Elsewhere the user binds
   `qs -p <repo> ipc call island <action>` in their compositor.
 
+- Icons from the system theme (`Quickshell.iconPath`, `IconImage`, `hasThemeIcon`) need `QS_ICON_THEME`;
+  `scripts/run.sh` sets it from the desktop settings. Always go through `run.sh` when testing icons.
+
 ### Conventions
 - English for code, comments and docs.
 - No inline `component X: …` declarations — Quickshell's `qs.*` module loader rejects them ("X is not a type");
@@ -112,10 +115,10 @@ Runtime files: `~/.config/dynamic-larpland/config.json`, `~/.config/dynamic-larp
 ## Commands
 
 ```bash
-qs -p .                                  # run from the repo with hot reload (save a file -> reloads)
+./scripts/run.sh                         # run with the desktop icon theme + hot reload (save a file -> reloads)
+qs -p .                                  # same, but Qt falls back to no icon theme (launcher icons missing)
 qs -p . ipc call island toggle           # call an IPC action on the running instance
 qs -p . ipc show                         # list IPC targets/functions
-./scripts/install.sh && qs -c dynamic-larpland   # install as a named config and run it
 ```
 Logs go to the terminal running `qs`; QML errors show there with file:line. There's no test suite yet — verify by
 running the shell and exercising the feature (hover, click, IPC).
