@@ -40,3 +40,7 @@ Remove any other bind on the same keys (e.g. another launcher on `SUPER + Space`
 qs -c dynamic-larpland ipc call island launcher   # also: toggle, expand, collapse, player, calendar, settings
 ```
 e.g. Sway: `bindsym Mod4+space exec qs -c dynamic-larpland ipc call island launcher`.
+
+## Development
+Run `./scripts/dev.sh`: it opens a nested Hyprland window with the island inside (own D-Bus session, ALT as the
+modifier), so your real desktop and shell stay untouched. See `CLAUDE.md` for details.

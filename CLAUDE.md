@@ -99,7 +99,7 @@ Runtime files: `~/.config/dynamic-larpland/config.json`, `~/.config/dynamic-larp
   `qs -p <repo> ipc call island <action>` in their compositor.
 
 - Icons from the system theme (`Quickshell.iconPath`, `IconImage`, `hasThemeIcon`) need `QS_ICON_THEME`;
-  `scripts/run.sh` sets it from the desktop settings. Always go through `run.sh` when testing icons.
+  `scripts/run.sh` sets it from the desktop settings (dev.sh passes it through).
 
 ### Conventions
 - English for code, comments and docs.
@@ -112,16 +112,37 @@ Runtime files: `~/.config/dynamic-larpland/config.json`, `~/.config/dynamic-larp
 - Keep animations declarative (`Behavior on …` with `Theme` durations); avoid JS timers for animation.
 - Don't block the UI thread: long work goes through `Process` / `FileView` asynchronously.
 
+## Development: always in a nested Hyprland
+
+**Never run the island on the user's real desktop and never touch their Hyprland config or their shell
+(Noctalia) while developing.** It would fight the host shell for the notification service and keybinds.
+Develop inside a nested Hyprland window instead:
+
+```bash
+./scripts/dev.sh               # nested Hyprland window (own D-Bus session) running scripts/run.sh
+./scripts/dev.sh --shared-bus  # same, but on the host D-Bus to see host media players
+```
+- Config: `dev/hyprland-nested.lua`. Modifier inside is **ALT** (the host grabs SUPER): ALT+Space launcher,
+  ALT+I toggle, ALT+Return kitty, ALT+N test notification, ALT+Q close, ALT+SHIFT+E quit.
+- The island there uses `XDG_CONFIG_HOME=.dev/config`, `XDG_STATE_HOME=.dev/state` (gitignored); `dev.sh` seeds
+  ALT keybinds. The real `~/.config/dynamic-larpland` is not used.
+- Start it in a terminal tab so the user can see it; stop it (Ctrl-C) when done. Hot reload works as usual.
+- Talking to it from the host: `qs -p . ipc call island <action>` works (same runtime dir); `qs log --pid <qs pid>`
+  for logs; `hyprctl -i 1 …` targets the nested Hyprland (`hyprctl instances` lists them); the nested window is
+  the host client with class `aquamarine` (use its `at`/`size` for `grim -g` screenshots). For a test notification
+  on the nested bus: `DBUS_SESSION_BUS_ADDRESS=$(tr '\0' '\n' </proc/<qs pid>/environ | sed -n
+  's/^DBUS_SESSION_BUS_ADDRESS=//p') notify-send …`.
+- Hot reload can stall after many reloads (edits stop being picked up); restart `dev.sh` then.
+
 ## Commands
 
 ```bash
-./scripts/run.sh                         # run with the desktop icon theme + hot reload (save a file -> reloads)
-qs -p .                                  # same, but Qt falls back to no icon theme (launcher icons missing)
+./scripts/run.sh                         # run with the desktop icon theme + hot reload (what dev.sh starts inside)
 qs -p . ipc call island toggle           # call an IPC action on the running instance
 qs -p . ipc show                         # list IPC targets/functions
 ```
-Logs go to the terminal running `qs`; QML errors show there with file:line. There's no test suite yet — verify by
-running the shell and exercising the feature (hover, click, IPC).
+QML errors show in the log with file:line. There's no test suite yet — verify by running the nested session and
+exercising the feature (hover, click, IPC, screenshots).
 
 ## Out of scope (for now)
 File shelf / AirDrop, webcam "Mirror", weather, X11 support, non-wlroots compositors without layer-shell (GNOME).
