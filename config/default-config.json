@@ -1,0 +1,20 @@
+{
+    "island": {
+        "hoverExpand": true,
+        "hoverDelayMs": 150,
+        "timeFormat": "HH:mm"
+    },
+    "calendar": {
+        "firstDayOfWeek": 0
+    },
+    "notifications": {
+        "historyLimit": 100,
+        "popupTimeoutMs": 4000
+    },
+    "keybinds": {
+        "launcher": "SUPER, SPACE",
+        "toggle": "SUPER, I",
+        "player": "",
+        "calendar": ""
+    }
+}

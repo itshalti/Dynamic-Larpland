@@ -1,0 +1,15 @@
+# Qt / QML caches
+*.qmlc
+*.jsc
+.qmlls.ini
+.qtcreator/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Secrets — never commit
+.env
+*.env
