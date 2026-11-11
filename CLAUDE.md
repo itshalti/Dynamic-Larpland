@@ -127,12 +127,14 @@ Develop inside a nested Hyprland window instead:
 - The island there uses `XDG_CONFIG_HOME=.dev/config`, `XDG_STATE_HOME=.dev/state` (gitignored); `dev.sh` seeds
   ALT keybinds. The real `~/.config/dynamic-larpland` is not used.
 - Start it in a terminal tab so the user can see it; stop it (Ctrl-C) when done. Hot reload works as usual.
-- Talking to it from the host: `qs -p . ipc call island <action>` works (same runtime dir); `qs log --pid <qs pid>`
-  for logs; `hyprctl -i 1 …` targets the nested Hyprland (`hyprctl instances` lists them); the nested window is
+- Talking to it from the host: `qs -p . ipc …` does NOT find the nested instance — use
+  `qs ipc --pid $(pgrep -f '^qs -p') call island <action>`; `qs log --pid <qs pid>` for logs; `hyprctl -i 1 …` targets the nested Hyprland (`hyprctl instances` lists them); the nested window is
   the host client with class `aquamarine` (use its `at`/`size` for `grim -g` screenshots). For a test notification
   on the nested bus: `DBUS_SESSION_BUS_ADDRESS=$(tr '\0' '\n' </proc/<qs pid>/environ | sed -n
   's/^DBUS_SESSION_BUS_ADDRESS=//p') notify-send …`.
-- Hot reload can stall after many reloads (edits stop being picked up); restart `dev.sh` then.
+- Hot reload is unreliable (it skips edits after a while). When an edit doesn't show up, restart only the island
+  inside the nested session: `kill $(pgrep -f '^qs -p')` then
+  `hyprctl -i 1 dispatch "hl.dsp.exec_cmd(\"env XDG_CONFIG_HOME=$PWD/.dev/config XDG_STATE_HOME=$PWD/.dev/state $PWD/scripts/run.sh\")"`.
 
 ## Commands
 

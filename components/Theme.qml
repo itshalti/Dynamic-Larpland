@@ -36,7 +36,7 @@ Singleton {
     readonly property size collapsedNotifSize: Qt.size(360, 34)
     readonly property size expandedSize: Qt.size(1040, 232)
     readonly property size playerSize: Qt.size(470, 196)
-    readonly property size calendarSize: Qt.size(440, 376)
+    readonly property size calendarSize: Qt.size(440, 414)
     readonly property size settingsSize: Qt.size(560, 380)
     readonly property real expandedRadius: 36
     readonly property int topMargin: 6
