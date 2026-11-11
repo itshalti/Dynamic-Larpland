@@ -24,6 +24,9 @@ hl.config({
 })
 
 hl.on("hyprland.start", function()
+    hl.exec_cmd("qs -p " .. repo .. "/dev/wallpaper")
+    -- Host players aren't visible on this session's own D-Bus, so start a demo one.
+    hl.exec_cmd("env XDG_STATE_HOME=" .. dev .. "/state python3 " .. repo .. "/dev/fake-player.py")
     -- The island keeps its config/state under .dev so the real ~/.config is never touched.
     hl.exec_cmd("env XDG_CONFIG_HOME=" .. dev .. "/config XDG_STATE_HOME=" .. dev .. "/state "
         .. repo .. "/scripts/run.sh")

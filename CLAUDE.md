@@ -132,6 +132,12 @@ Develop inside a nested Hyprland window instead:
   the host client with class `aquamarine` (use its `at`/`size` for `grim -g` screenshots). For a test notification
   on the nested bus: `DBUS_SESSION_BUS_ADDRESS=$(tr '\0' '\n' </proc/<qs pid>/environ | sed -n
   's/^DBUS_SESSION_BUS_ADDRESS=//p') notify-send …`.
+- The session also starts `dev/wallpaper` (gradient background, separate Quickshell config) and
+  `dev/fake-player.py` ("Demo Player": made-up tracks with generated covers on the session bus; control it with
+  `dbus-send … org.mpris.MediaPlayer2.Player.Next` etc.).
+- README media live in `docs/media/` and are recorded in the nested session: `dev/record.py OUT.gif X Y W H SECONDS
+  [--cursor] [--width 840]` (grim frames → ffmpeg GIF); stills with `grim -g`. Drive the island with IPC while
+  recording; only demo data on screen (fake player, made-up notifications), no personal paths.
 - Hot reload is unreliable (it skips edits after a while). When an edit doesn't show up, restart only the island
   inside the nested session: `kill $(pgrep -f '^qs -p')` then
   `hyprctl -i 1 dispatch "hl.dsp.exec_cmd(\"env XDG_CONFIG_HOME=$PWD/.dev/config XDG_STATE_HOME=$PWD/.dev/state $PWD/scripts/run.sh\")"`.
