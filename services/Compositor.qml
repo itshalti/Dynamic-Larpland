@@ -17,10 +17,14 @@ Singleton {
     // Name of the focused output, or "" when unknown (then every screen reacts).
     readonly property string focusedScreen: isHyprland ? (Hyprland.focusedMonitor?.name ?? "") : ""
 
+    readonly property string home: Quickshell.env("HOME") ?? ""
     readonly property string bindsPath: Config.dir + "/binds.lua"
+    // bindsPath relative to $HOME (for display and for the include line).
+    readonly property string bindsPathInHome: home && bindsPath.startsWith(home + "/") ? bindsPath.slice(home.length) : ""
+    readonly property string bindsPathDisplay: bindsPathInHome ? "~" + bindsPathInHome : bindsPath
 
     // Line to include from the Hyprland Lua config so the generated binds are loaded.
-    readonly property string includeLine: `pcall(dofile, "${bindsPath}")`
+    readonly property string includeLine: bindsPathInHome ? `pcall(dofile, os.getenv("HOME") .. "${bindsPathInHome}")` : `pcall(dofile, "${bindsPath}")`
 
     function ipcCommand(action: string): string {
         return `qs -p ${Quickshell.shellDir} ipc call island ${action}`;

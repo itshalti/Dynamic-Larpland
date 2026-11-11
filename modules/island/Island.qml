@@ -72,7 +72,9 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "dynamic-larpland"
     // Grab the keyboard only while recording a keybind; otherwise take focus on click (for Esc).
-    WlrLayershell.keyboardFocus: settingsView.capturing ? WlrKeyboardFocus.Exclusive : expanded ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // Don't switch this on expand/collapse: changing it mid-hover made the compositor send a
+    // spurious pointer leave, collapsing the island right after it opened.
+    WlrLayershell.keyboardFocus: settingsView.capturing ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
 
     // Only the pill receives input; the rest of the window is click-through.
     mask: Region {

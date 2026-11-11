@@ -75,7 +75,7 @@ Item {
             elide: Text.ElideNone
             color: Theme.textTertiary
             font.pixelSize: 11
-            text: Compositor.isHyprland ? `Saved to ${Compositor.bindsPath} — load it from your Hyprland config with: ${Compositor.includeLine}` : `Bind keys in your compositor to: ${Compositor.ipcCommand("<action>")}`
+            text: Compositor.isHyprland ? `Saved to ${Compositor.bindsPathDisplay} — load it from your Hyprland config with: ${Compositor.includeLine}` : `Bind keys in your compositor to: ${Compositor.ipcCommand("<action>")}`
         }
     }
 }

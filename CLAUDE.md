@@ -135,7 +135,8 @@ Develop inside a nested Hyprland window instead:
 - The session also starts `dev/wallpaper` (gradient background, separate Quickshell config) and
   `dev/fake-player.py` ("Demo Player": made-up tracks with generated covers on the session bus; control it with
   `dbus-send … org.mpris.MediaPlayer2.Player.Next` etc.).
-- README media live in `docs/media/` and are recorded in the nested session: `dev/record.py OUT.gif X Y W H SECONDS
+- README media (keep it to `docs/media/tour.gif` — one tour of the island — and `launcher.gif`) are recorded in the
+  nested session: `dev/record.py OUT.gif X Y W H SECONDS
   [--cursor] [--width 840]` (grim frames → ffmpeg GIF); stills with `grim -g`. Drive the island with IPC while
   recording; only demo data on screen (fake player, made-up notifications), no personal paths.
 - Hot reload is unreliable (it skips edits after a while). When an edit doesn't show up, restart only the island
