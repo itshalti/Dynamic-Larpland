@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "lLEBT50xCL8=",
+  "success": true,
+  "projectFilePath": "/home/tymurd/Downloads/ss14-replay/Content.Shared.Database/Content.Shared.Database.csproj",
+  "expectedPackageFiles": [
+    "/home/tymurd/.nuget/packages/microsoft.aspnetcore.app.ref/10.0.14/microsoft.aspnetcore.app.ref.10.0.14.nupkg.sha512"
+  ],
+  "logs": []
+}
