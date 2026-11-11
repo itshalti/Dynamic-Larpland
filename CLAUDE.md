@@ -47,7 +47,8 @@ panel with media controls, a calendar, notification history, the system tray, se
    name, generic name), ↑/↓ navigation, Enter launches, Esc closes; selected row has a highlighted background and an
    accent bar on the left.
 8. **Settings** (gear) — keybind editor (launcher, toggle island, open player, open calendar) + basic options.
-   Stored in `~/.config/dynamic-larpland/config.json`; defaults in `config/default-config.json`.
+   Stored in `~/.config/dynamic-larpland/config.json` (created on first run); the defaults live in the
+   `JsonAdapter` inside `services/Config.qml`.
 
 ### Visual style
 Pure black (`#000`) surfaces, large radii, white primary text, grey secondary text, teal accent (`#3fd0b0`),
@@ -57,40 +58,51 @@ no hardcoded values in modules.
 ## Architecture
 
 ```
-shell.qml                  entry: ShellRoot, one Island per screen (Variants over Quickshell.screens)
-config/default-config.json default settings + keybinds
-components/                reusable UI + Theme singleton (design tokens)
-services/                  singletons (pragma Singleton), NO UI: Time, Ipc, Config, Media, Notifications,
-                           Apps, Compositor
-modules/island/            Island (PanelWindow + state machine), IslandShape, CollapsedView, ExpandedView
-modules/media/             MediaCard, PlayerView, Visualizer
+shell.qml                  entry: ShellRoot, one Island per screen (Variants over Quickshell.screens) + Launcher
+components/                Theme (design tokens singleton), Icon, IconButton, AppIcon, StyledText
+services/                  singletons (pragma Singleton), NO UI:
+                             Config (config.json via JsonAdapter), Time, Ipc (IpcHandler + GlobalShortcuts),
+                             Compositor (Hyprland detection, focused screen, binds.lua), Media (MPRIS),
+                             Notifications (daemon + history), Apps (desktop entries + fuzzy search)
+modules/island/            Island (PanelWindow + mode state machine), IslandShape, ModeView, CollapsedView,
+                           ExpandedView, TabButton
+modules/media/             MediaCard, PlayerView, Cover, Visualizer
 modules/calendar/          WeekStrip, MonthCalendar
 modules/notifications/     NotificationList, NotificationItem
 modules/tray/              TrayView
-modules/launcher/          Launcher (own layer-shell window, exclusive keyboard focus), LauncherItem
-modules/settings/          SettingsView, KeybindEditor
-assets/icons/              bundled icons
+modules/launcher/          Launcher (own full-screen layer-shell window, exclusive keyboard), LauncherItem
+modules/settings/          SettingsView, KeybindEditor, Toggle
+assets/icons/              bundled white SVG icons (own drawings), loaded with components/Icon
 scripts/install.sh         symlinks the repo into ~/.config/quickshell/dynamic-larpland
 ```
 
-Only `shell.qml`, `components/Theme.qml`, `services/Time.qml`, `services/Ipc.qml` and `modules/island/*` exist so far;
-create the others when implementing them, following this layout.
+Runtime files: `~/.config/dynamic-larpland/config.json`, `~/.config/dynamic-larpland/binds.lua` (generated),
+`~/.local/state/dynamic-larpland/notifications.json` (history).
 
 ### Rules
 - **services/** hold state and talk to the system; **modules/** only render and forward user intent. A module never
   runs `Process` or reads files directly.
 - Import project dirs as Quickshell modules: `import qs.components`, `import qs.services`, `import qs.modules.island`.
 - Island state machine (`Island.qml`, property `mode`): `collapsed | expanded | player | calendar | settings`.
-  Each mode defines its target size in `Theme`; `IslandShape` animates to it. Views are `Loader`s / cross-faded items
-  keyed on `mode`.
+  Each mode defines its target size in `Theme`; `IslandShape` animates to it. Each page is wrapped in a `ModeView`
+  that lays it out at its final size (no reflow during the morph) and cross-fades it on `mode`.
+- Hover expands after `hoverDelayMs`, leaving collapses after `Theme.hoverCloseDelay` unless `holdOpen` (settings
+  page, open tray menu). Keybind/IPC actions only affect the island on the focused screen (`Island.isTarget`).
 - The island window is a fixed-size transparent `PanelWindow` (layer `Overlay`, `ExclusionMode.Ignore`); input is
   limited to the pill with `mask: Region { item: shape }`, so the transparent area never steals clicks.
 - Every action is reachable through IPC (`services/Ipc.qml`, target `island`): `toggle`, `expand`, `collapse`,
-  `launcher`, `player`, `calendar`, `settings`. Keybinds call these; on Hyprland defaults are registered with
-  `GlobalShortcut` / `hyprctl keyword bind`, elsewhere the user binds `qs -c dynamic-larpland ipc call island <action>`.
+  `launcher`, `player`, `calendar`, `settings`.
+- Keybinds on Hyprland (0.55+ Lua config): actions are registered as global shortcuts `dynamic-larpland:<action>`;
+  `Compositor.writeBinds()` generates `binds.lua` (`hl.bind(keys, hl.dsp.global(...))`) from the config and runs
+  `hyprctl reload config-only`. The user's Hyprland config must contain
+  `pcall(dofile, "<config dir>/dynamic-larpland/binds.lua")`. Elsewhere the user binds
+  `qs -p <repo> ipc call island <action>` in their compositor.
 
 ### Conventions
 - English for code, comments and docs.
+- No inline `component X: …` declarations — Quickshell's `qs.*` module loader rejects them ("X is not a type");
+  put each component in its own file.
+- Never name a property `onSomething` (QML treats it as a signal handler).
 - Files start with `pragma ComponentBehavior: Bound` where delegates use outer ids; singletons with `pragma Singleton`.
 - Use `required property` for delegate data; prefer `readonly property` for derived values.
 - 4-space indent, one component per file, PascalCase file names, camelCase properties.

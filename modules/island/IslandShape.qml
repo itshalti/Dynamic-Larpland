@@ -1,18 +1,19 @@
-// The black pill. Size and corner radius morph together toward their targets.
+// The black pill. Size and corner radius morph together toward their targets;
+// content is clipped to the rounded shape.
 import QtQuick
+import Quickshell.Widgets
 import qs.components
 
-Rectangle {
+ClippingRectangle {
     id: root
 
     property size targetSize: Theme.collapsedSize
-    property real targetRadius: Theme.collapsedRadius
+    property real targetRadius: targetSize.height / 2
 
     width: targetSize.width
     height: targetSize.height
     radius: targetRadius
     color: Theme.surface
-    clip: true
 
     Behavior on width {
         NumberAnimation {

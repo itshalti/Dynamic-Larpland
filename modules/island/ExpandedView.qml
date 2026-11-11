@@ -1,29 +1,112 @@
-// Expanded content. Placeholder until the Nook/Tray tabs, media card, week strip
-// and notification list are implemented (see CLAUDE.md).
+pragma ComponentBehavior: Bound
+// Expanded island (NotchNook-like): Nook / Tray tabs and a settings gear on top;
+// Nook = media card | week strip | notifications, Tray = system tray.
 import QtQuick
+import QtQuick.Layouts
 import qs.components
-import qs.services
+import qs.modules.media
+import qs.modules.calendar
+import qs.modules.notifications
+import qs.modules.tray
 
 Item {
-    Column {
-        anchors.centerIn: parent
+    id: root
+
+    property string tab: "nook"
+    readonly property bool holdOpen: tray.menuOpen
+
+    signal openPlayer
+    signal openCalendar
+    signal openSettings
+
+
+    RowLayout {
+        id: header
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.margins: 16
+        anchors.leftMargin: 26
         spacing: 6
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: Time.time
-            color: Theme.textPrimary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontTitle * 2
-            font.weight: Font.Bold
+        TabButton {
+            icon: "music"
+            label: "Nook"
+            selected: root.tab === "nook"
+            onClicked: root.tab = "nook"
         }
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDateTime(Time.now, "dddd, d MMMM")
-            color: Theme.textSecondary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
+        TabButton {
+            icon: "tray"
+            label: "Tray"
+            selected: root.tab === "tray"
+            onClicked: root.tab = "tray"
+        }
+
+        Item {
+            Layout.fillWidth: true
+        }
+
+        IconButton {
+            icon: "gear"
+            iconSize: 18
+            onClicked: root.openSettings()
+        }
+    }
+
+    Item {
+        anchors.top: header.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 26
+        anchors.topMargin: 12
+        anchors.bottomMargin: 20
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: 18
+            visible: root.tab === "nook"
+
+            MediaCard {
+                Layout.preferredWidth: 320
+                Layout.fillHeight: true
+                onOpenPlayer: root.openPlayer()
+            }
+
+            Rectangle {
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                Layout.topMargin: 6
+                Layout.bottomMargin: 6
+                color: Theme.divider
+            }
+
+            WeekStrip {
+                clip: true
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                onOpenCalendar: root.openCalendar()
+            }
+
+            Rectangle {
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                Layout.topMargin: 6
+                Layout.bottomMargin: 6
+                color: Theme.divider
+            }
+
+            NotificationList {
+                Layout.preferredWidth: 260
+                Layout.fillHeight: true
+            }
+        }
+
+        TrayView {
+            id: tray
+            anchors.fill: parent
+            visible: root.tab === "tray"
         }
     }
 }
