@@ -52,6 +52,7 @@ namespace theme {
   inline constexpr float bodyFontSize = 14.0F;
   inline constexpr float titleFontSize = 17.0F;
   inline constexpr float hugeFontSize = 30.0F;
+  inline constexpr float lockClockFontSize = 128.0F;
 
   inline constexpr float radiusSmall = 8.0F;
   inline constexpr float radiusMedium = 14.0F;
@@ -65,6 +66,8 @@ namespace theme {
   // Interaction timing. Leaving the pill within modeSwitchGraceMs of a page switch (the pill resizes
   // under the pointer) collapses only after modeSwitchCloseDelayMs.
   inline constexpr int hoverCloseDelayMs = 300;
+  // How long an armed power tile waits for the confirming second click.
+  inline constexpr int confirmTimeoutMs = 3000;
   inline constexpr int modeSwitchGraceMs = 1200;
   inline constexpr int modeSwitchCloseDelayMs = 1500;
 

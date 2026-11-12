@@ -11,6 +11,7 @@
 #include "island/collapsed_page.h"
 #include "island/expanded_page.h"
 #include "island/media_pages.h"
+#include "island/power_page.h"
 #include "island/wallpaper_page.h"
 #include "services/media_service.h"
 #include "render/render_context.h"
@@ -79,8 +80,9 @@ Islands::~Islands() = default;
 void Islands::initialize(
     WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config, AsyncTextureCache& textures,
     WallpaperService& wallpapers, MediaService& media, NotificationService& notifications, TrayService& tray,
-    IconResolver& icons
+    IconResolver& icons, RecorderService& recorder
 ) {
+  m_recorder = &recorder;
   m_tray = &tray;
   m_icons = &icons;
   m_trayMenu = std::make_unique<ContextMenuPopup>(wayland, renderContext);
@@ -150,6 +152,17 @@ void Islands::refreshCollapsed(Instance& inst) {
   if (inst.mode == "collapsed") {
     morphTo(inst);
   }
+}
+
+void Islands::onRecorderChanged() {
+  for (auto& inst : m_instances) {
+    rebuildPage(*inst, "expanded");
+  }
+}
+
+std::string Islands::targetConnector() {
+  const auto list = targets();
+  return list.size() == 1 ? list.front()->connector : std::string();
 }
 
 void Islands::onTrayChanged() {
@@ -261,6 +274,7 @@ BuiltPage Islands::buildPage(Instance& inst, const std::string& mode) {
       .media = *m_media,
       .notifications = *m_notifications,
       .tray = *m_tray,
+      .recorder = *m_recorder,
       .icons = *m_icons,
       .requestRedraw = [raw] { raw->surface->requestRedraw(); },
       // Deferred: an action may rebuild the page whose button triggered it.
@@ -287,6 +301,9 @@ BuiltPage Islands::buildPage(Instance& inst, const std::string& mode) {
   }
   if (mode == "player") {
     return buildPlayerPage(ctx, size.width, size.height);
+  }
+  if (mode == "power") {
+    return buildPowerPage(ctx, size.width, size.height);
   }
   // shortcut: placeholder title until the real page content lands (milestones 4-5).
   auto page = std::make_unique<Node>();

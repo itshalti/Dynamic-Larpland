@@ -12,8 +12,11 @@
 #include "net/http_client_poll_source.h"
 #include "services/media_service.h"
 #include "services/notification_service.h"
+#include "services/recorder_service.h"
 #include "ipc/ipc.h"
 #include "island/island.h"
+#include "launcher/launcher.h"
+#include "lock/lock_screen.h"
 #include "services/wallpaper_service.h"
 #include "wallpaper/background.h"
 #include "render/core/async_texture_cache.h"
@@ -33,6 +36,7 @@ public:
 
 private:
   std::string handleAction(const std::string& action);
+  void runSystemAction(const std::string& what);
 
   WaylandConnection m_wayland;
   GlSharedContext m_glShared;
@@ -47,6 +51,7 @@ private:
   NotificationService m_notifications{m_sessionBus, m_config};
   TrayService m_tray{m_sessionBus};
   IconResolver m_icons{true};
+  RecorderService m_recorder{m_config};
   AsyncTextureCache m_textures;
   HyprlandService m_hyprland;
   TimerPollSource m_timers;
@@ -54,4 +59,6 @@ private:
   IpcServer m_ipc;
   Backgrounds m_backgrounds;
   Islands m_islands;
+  Launcher m_launcher;
+  LockScreen m_lockScreen;
 };

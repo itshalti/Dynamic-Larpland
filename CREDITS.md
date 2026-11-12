@@ -15,6 +15,9 @@ Dynamic-Larpland's native (C++) version is built on code from
 - `src/dbus/session_bus.*`, `src/dbus/mpris/` (Noctalia's own D-Bus control API and IPC hooks removed),
   `src/dbus/tray_service.*`, `src/net/` (HTTP client for remote cover art), `src/system/icon_resolver.*`
   (plus a `DYNAMIC_LARPLAND_ICON_THEME` override), `src/system/freedesktop_key_file.*` — from Noctalia.
+- `src/system/desktop_entry*`, `src/system/terminal_launch.*`, `src/launcher/fuzzy_match.*`,
+  `src/auth/pam_authenticator.*` (i18n strings replaced) — from Noctalia; `third_party/fzy/` (MIT), as vendored
+  by Noctalia.
 - `assets/templates/` — Noctalia's built-in app template catalog, output files renamed from `noctalia.*` to
   `dynamic-larpland.*`.
 - `third_party/material_color_utilities/` — Google's Material Color Utilities (Apache-2.0), as vendored by Noctalia.

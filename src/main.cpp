@@ -2,10 +2,12 @@
 //   dynamic-larpland              run the island
 //   dynamic-larpland theme <image>  palette JSON / apply app templates (see --help)
 //   dynamic-larpland msg <action> send an action to the running island (toggle, expand, collapse,
-//                                 player, calendar, wallpapers, power, quit, wallpaper <path>)
+//                                 player, calendar, wallpapers, power, launcher, record, lock, quit,
+//                                 wallpaper <path>)
 #include "app/application.h"
 #include "app/library.h"
 #include "app/main_loop.h"
+#include "auth/pam_authenticator.h"
 #include "core/log.h"
 #include "theme/theme_cli.h"
 
@@ -18,6 +20,10 @@
 int main(int argc, char** argv) {
   configureLibrary();
 
+  // PAM runs in a re-exec'd helper (see PamAuthenticator) so it never shares state with the UI threads.
+  if (argc >= 2 && std::string_view(argv[1]) == "pam-helper") {
+    return PamAuthenticator::runHelperMode(argc, argv);
+  }
   if (argc >= 2 && std::string_view(argv[1]) == "theme") {
     return runThemeCli(argc, argv);
   }

@@ -45,10 +45,19 @@ struct NotificationsConfig {
   int popupTimeoutMs = 4000;
 };
 
+struct RecorderConfig {
+  // Folder for recordings ("~" = home).
+  std::string dir = "~/Videos";
+  int fps = 60;
+  // gpu-screen-recorder -a value ("" = no audio).
+  std::string audio = "default_output";
+};
+
 struct Config {
   IslandConfig island;
   NotificationsConfig notifications;
   CalendarConfig calendar;
+  RecorderConfig recorder;
   ThemeConfig theme;
   WallpaperConfig wallpaper;
 };

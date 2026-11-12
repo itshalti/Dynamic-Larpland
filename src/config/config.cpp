@@ -26,6 +26,8 @@ namespace {
              {"time_format", c.island.timeFormat},
          }},
         {"calendar", toml::table{{"first_day_of_week", c.calendar.firstDayOfWeek}}},
+        {"recorder",
+         toml::table{{"dir", c.recorder.dir}, {"fps", c.recorder.fps}, {"audio", c.recorder.audio}}},
         {"notifications",
          toml::table{
              {"history_limit", c.notifications.historyLimit},
@@ -53,6 +55,9 @@ namespace {
     c.island.hoverDelayMs = island["hover_delay_ms"].value_or(c.island.hoverDelayMs);
     c.island.timeFormat = island["time_format"].value_or(c.island.timeFormat);
     c.calendar.firstDayOfWeek = t["calendar"]["first_day_of_week"].value_or(c.calendar.firstDayOfWeek);
+    c.recorder.dir = t["recorder"]["dir"].value_or(c.recorder.dir);
+    c.recorder.fps = t["recorder"]["fps"].value_or(c.recorder.fps);
+    c.recorder.audio = t["recorder"]["audio"].value_or(c.recorder.audio);
     const auto notifications = t["notifications"];
     c.notifications.historyLimit = notifications["history_limit"].value_or(c.notifications.historyLimit);
     c.notifications.popupTimeoutMs = notifications["popup_timeout_ms"].value_or(c.notifications.popupTimeoutMs);

@@ -46,6 +46,7 @@ hl.bind(mod .. " + Return", hl.dsp.exec_cmd("kitty"))
 -- Island actions go through its IPC socket (dynamic-larpland msg <action>).
 local island = repo .. "/build/dynamic-larpland msg "
 hl.bind(mod .. " + I", hl.dsp.exec_cmd(island .. "toggle"))
+hl.bind(mod .. " + Space", hl.dsp.exec_cmd(island .. "launcher"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + SHIFT + E", hl.dsp.exit())
 hl.bind(mod .. " + N", hl.dsp.exec_cmd("notify-send -a Dev 'Test notification' 'Sent from the nested session'"))

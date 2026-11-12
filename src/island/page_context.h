@@ -11,6 +11,7 @@ class AsyncTextureCache;
 class MediaService;
 class IconResolver;
 class NotificationService;
+class RecorderService;
 class TrayService;
 class Renderer;
 class WallpaperService;
@@ -24,6 +25,7 @@ struct PageContext {
   MediaService& media;
   NotificationService& notifications;
   TrayService& tray;
+  RecorderService& recorder;
   IconResolver& icons;
   std::function<void()> requestRedraw;
   // Runs an island/app action: a mode name ("player", "expanded", ...), "rebuild:<mode>" (rebuild that page

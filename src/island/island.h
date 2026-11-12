@@ -25,6 +25,7 @@ class ContextMenuPopup;
 class IconResolver;
 class Label;
 class TrayService;
+class RecorderService;
 class MediaService;
 class NotificationService;
 class RenderContext;
@@ -50,7 +51,7 @@ public:
   void initialize(
       WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config, AsyncTextureCache& textures,
       WallpaperService& wallpapers, MediaService& media, NotificationService& notifications, TrayService& tray,
-      IconResolver& icons
+      IconResolver& icons, RecorderService& recorder
   );
   // Handles actions pages trigger that aren't island modes ("record", "settings").
   void setActionHandler(std::function<void(const std::string&)> handler) { m_actionHandler = std::move(handler); }
@@ -62,6 +63,9 @@ public:
   void onMediaChanged();
   void onNotificationsChanged();
   void onTrayChanged();
+  void onRecorderChanged();
+  // Connector name of the monitor an action applies to (focused monitor, else the first island's).
+  std::string targetConnector();
   // A new notification: shown briefly as a live activity on collapsed islands.
   void onNotificationPosted(const NotificationEntry& entry);
   bool onPointerEvent(const PointerEvent& event);
@@ -126,6 +130,7 @@ private:
   NotificationService* m_notifications = nullptr;
   TrayService* m_tray = nullptr;
   IconResolver* m_icons = nullptr;
+  RecorderService* m_recorder = nullptr;
   // Tray item menu (xdg_popup on the island surface); the island stays open while it is shown.
   std::unique_ptr<ContextMenuPopup> m_trayMenu;
   bool m_menuOpen = false;

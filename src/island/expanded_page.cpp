@@ -2,6 +2,7 @@
 
 #include "island/media_pages.h"
 #include "island/notification_list.h"
+#include "services/recorder_service.h"
 #include "island/theme.h"
 #include "island/tray_view.h"
 #include "island/widgets.h"
@@ -55,8 +56,18 @@ namespace {
     constexpr float kButton = 32.0F;
     float x = width - 16.0F - kButton * static_cast<float>(kButtons.size()) - 4.0F * (kButtons.size() - 1);
     for (const auto& [glyphName, actionName] : kButtons) {
+      // While recording, the record button is a red stop button.
+      const bool recording = std::string_view(actionName) == "record" && ctx.recorder.recording();
+      if (recording) {
+        auto dot = std::make_unique<Box>();
+        dot->setPosition(x, kHeaderTop - 1.0F);
+        dot->setSize(kButton, kButton);
+        dot->setRadius(kButton / 2.0F);
+        dot->setFill(theme::recording);
+        page.addChild(std::move(dot));
+      }
       auto* button = widgets::iconButton(
-          page, ctx.renderer, glyphName, kButton, 18.0F,
+          page, ctx.renderer, recording ? "player-stop-filled" : glyphName, kButton, recording ? 14.0F : 18.0F,
           [action = ctx.action, name = std::string(actionName)] { action(name); }, ctx.requestRedraw
       );
       button->setPosition(x, kHeaderTop - 1.0F);

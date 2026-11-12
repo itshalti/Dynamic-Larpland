@@ -2,9 +2,11 @@
 
 #include "app/main_loop.h"
 #include "island/ui_palette.h"
+#include "system/process.h"
 #include "core/log.h"
 #include "render/backend/render_backend.h"
 #include "wayland/layer_shell.h"
+#include "wayland/session_lock.h"
 #include "wayland/wayland_seat.h"
 
 #include <filesystem>
@@ -19,6 +21,7 @@ namespace {
 Application::Application() {
   // Extensions must exist before connect() so the registry roundtrip binds their globals.
   m_wayland.extension<LayerShell>();
+  m_wayland.extension<SessionLockManager>();
   if (!m_wayland.connect()) {
     throw std::runtime_error("failed to connect to the Wayland display");
   }
@@ -37,14 +40,23 @@ Application::Application() {
   // Created before the islands so the wallpaper sits below them in the same compositor pass.
   m_backgrounds.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers);
   m_islands.initialize(
-      m_wayland, m_renderContext, m_config, m_textures, m_wallpapers, m_media, m_notifications, m_tray, m_icons
+      m_wayland, m_renderContext, m_config, m_textures, m_wallpapers, m_media, m_notifications, m_tray, m_icons,
+      m_recorder
   );
+  m_recorder.setChangeCallback([this] { m_islands.onRecorderChanged(); });
   m_tray.setChangeCallback([this] { m_islands.onTrayChanged(); });
   m_tray.start();
   m_notifications.setChangeCallback([this] { m_islands.onNotificationsChanged(); });
   m_notifications.setPostedCallback([this](const NotificationEntry& entry) { m_islands.onNotificationPosted(entry); });
   m_islands.setFocusedMonitorProvider([this] { return m_hyprland.focusedMonitor(); });
-  m_islands.setActionHandler([this](const std::string& action) { handleAction(action); });
+  // Page actions: the power ones exist only here (behind the page's confirm), never as IPC actions.
+  m_islands.setActionHandler([this](const std::string& action) {
+    if (action.starts_with("system:")) {
+      runSystemAction(action.substr(7));
+    } else {
+      handleAction(action);
+    }
+  });
   m_media.setChangeCallback([this] { m_islands.onMediaChanged(); });
   m_wallpapers.setChangeCallback([this] {
     applyUiPalette(m_wallpapers);
@@ -59,8 +71,19 @@ Application::Application() {
     m_backgrounds.onOutputsChanged();
     m_islands.onOutputsChanged();
   });
-  m_wayland.setPointerEventCallback([this](const PointerEvent& event) { m_islands.onPointerEvent(event); });
-  m_wayland.setKeyboardEventCallback([this](const KeyboardEvent& event) { m_islands.onKeyboardEvent(event); });
+  m_launcher.initialize(m_wayland, m_renderContext, m_textures, m_icons, m_wallpapers);
+  m_lockScreen.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers, m_config);
+  // The lock screen, then the launcher (both grab the keyboard), get input first.
+  m_wayland.setPointerEventCallback([this](const PointerEvent& event) {
+    if (!m_lockScreen.onPointerEvent(event) && !m_launcher.onPointerEvent(event)) {
+      m_islands.onPointerEvent(event);
+    }
+  });
+  m_wayland.setKeyboardEventCallback([this](const KeyboardEvent& event) {
+    if (!m_lockScreen.onKeyboardEvent(event) && !m_launcher.onKeyboardEvent(event)) {
+      m_islands.onKeyboardEvent(event);
+    }
+  });
 
   m_ipc.start([this](const std::string& action) { return handleAction(action); });
 }
@@ -76,6 +99,13 @@ std::string Application::handleAction(const std::string& action) {
     m_islands.setMode("collapsed");
   } else if (action == "player" || action == "calendar" || action == "wallpapers" || action == "power") {
     m_islands.toggleMode(action);
+  } else if (action == "lock") {
+    m_launcher.close();
+    m_lockScreen.lock();
+  } else if (action == "launcher") {
+    m_launcher.toggle(m_islands.targetConnector());
+  } else if (action == "record") {
+    m_recorder.toggle(m_islands.targetConnector());
   } else if (action.starts_with("wallpaper ")) {
     const std::string path = action.substr(10);
     if (!std::filesystem::is_regular_file(path)) {
@@ -88,6 +118,24 @@ std::string Application::handleAction(const std::string& action) {
     return "unknown action: " + action;
   }
   return "ok";
+}
+
+void Application::runSystemAction(const std::string& what) {
+  std::vector<std::string> command;
+  if (what == "poweroff") {
+    command = {"systemctl", "poweroff"};
+  } else if (what == "reboot") {
+    command = {"systemctl", "reboot"};
+  } else if (what == "firmware") {
+    command = {"systemctl", "reboot", "--firmware-setup"};
+  } else if (what == "suspend") {
+    command = {"systemctl", "suspend"};
+  } else {
+    return;
+  }
+  if (!process::runAsync(command)) {
+    kLog.warn("could not run {}", command.front());
+  }
 }
 
 void Application::run() {

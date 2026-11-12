@@ -47,6 +47,15 @@ mcu_lib = static_library('material_color_utilities',
 )
 mcu_dep = declare_dependency(link_whole: mcu_lib, include_directories: mcu_inc)
 
+# Vendored fzy (MIT), as in Noctalia: fuzzy matching for the launcher.
+fzy_lib = static_library('fzy', 'third_party/fzy/src/match.c',
+  include_directories: include_directories('third_party/fzy/include/fzy', is_system: true),
+  c_args: ['-Wno-pedantic', '-Wno-conversion'],
+  override_options: ['warning_level=0'],
+)
+fzy_dep = declare_dependency(link_whole: fzy_lib,
+  include_directories: include_directories('third_party/fzy/include', is_system: true))
+
 wayland_scanner = find_program('wayland-scanner')
 # wlr-layer-shell names a parameter 'namespace' (a C++ keyword): rename it in the generated header.
 layer_shell_h = custom_target('wlr-layer-shell-client-header',
@@ -60,14 +69,26 @@ layer_shell_c = custom_target('wlr-layer-shell-client-source',
   command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'], depends: layer_shell_h)
 protocol_sources = [layer_shell_c]
 protocol_headers = [layer_shell_h]
+wl_protocols_dir = dependency('wayland-protocols').get_variable('pkgdatadir')
+foreach p : [['ext-session-lock-v1', wl_protocols_dir / 'staging/ext-session-lock/ext-session-lock-v1.xml']]
+  h = custom_target(p[0] + '-client-header', input: p[1], output: p[0] + '-client-protocol.h',
+    command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
+  protocol_sources += custom_target(p[0] + '-client-source', input: p[1], output: p[0] + '-client-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'], depends: h)
+  protocol_headers += h
+endforeach
 
 sources = files(
+  'src/launcher/fuzzy_match.cpp',
+  'src/launcher/launcher.cpp',
+  'src/lock/lock_screen.cpp',
   'src/main.cpp',
   'src/net/http_client.cpp',
   'src/net/uri.cpp',
   'src/app/application.cpp',
   'src/app/library.cpp',
   'src/app/main_loop.cpp',
+  'src/auth/pam_authenticator.cpp',
   'src/compositors/hyprland.cpp',
   'src/config/atomic_file.cpp',
   'src/config/config.cpp',
@@ -82,16 +103,21 @@ sources = files(
   'src/island/island.cpp',
   'src/island/media_pages.cpp',
   'src/island/notification_list.cpp',
+  'src/island/power_page.cpp',
   'src/island/tray_view.cpp',
   'src/island/ui_palette.cpp',
   'src/island/widgets.cpp',
   'src/island/wallpaper_page.cpp',
   'src/services/media_service.cpp',
   'src/services/notification_service.cpp',
+  'src/services/recorder_service.cpp',
   'src/services/wallpaper_service.cpp',
+  'src/system/desktop_entry.cpp',
+  'src/system/desktop_entry_launch.cpp',
   'src/system/freedesktop_key_file.cpp',
   'src/system/icon_resolver.cpp',
   'src/system/process.cpp',
+  'src/system/terminal_launch.cpp',
   'src/theme/builtin_templates.cpp',
   'src/theme/color.cpp',
   'src/theme/contrast.cpp',
@@ -110,11 +136,12 @@ sources = files(
   'src/wallpaper/background.cpp',
   'src/wayland/layer_shell.cpp',
   'src/wayland/layer_surface.cpp',
+  'src/wayland/session_lock.cpp',
 )
 
 executable('dynamic-larpland',
   sources + protocol_sources + protocol_headers,
-  dependencies: [noctalia_ui_dep, noctalia_ui_codecs_dep, dependency('tomlplusplus'), dependency('sdbus-c++'), dependency('libcurl'), mcu_dep],
+  dependencies: [noctalia_ui_dep, noctalia_ui_codecs_dep, dependency('tomlplusplus'), dependency('sdbus-c++'), dependency('libcurl'), dependency('pam'), mcu_dep, fzy_dep],
   include_directories: include_directories('src'),
   # shortcut: assets are read from the source tree, fine for development; install them for packaging (milestone 7).
   cpp_args: [
