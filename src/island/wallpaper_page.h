@@ -7,4 +7,4 @@
 
 // Wallpaper picker page: header + a horizontal strip of previews from the wallpaper folder (the wheel scrolls
 // it). Clicking a preview sets it as the wallpaper and recolors the system (WallpaperService::set).
-std::unique_ptr<Node> buildWallpaperPage(const PageContext& ctx, float width, float height);
+BuiltPage buildWallpaperPage(const PageContext& ctx, float width, float height);

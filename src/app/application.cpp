@@ -1,6 +1,7 @@
 #include "app/application.h"
 
 #include "app/main_loop.h"
+#include "island/ui_palette.h"
 #include "core/log.h"
 #include "render/backend/render_backend.h"
 #include "wayland/layer_shell.h"
@@ -32,10 +33,21 @@ Application::Application() {
     m_textures.setMakeCurrentCallback([this] { m_renderContext.backend().makeCurrentNoSurface(); });
   }
 
+  applyUiPalette(m_wallpapers);
   // Created before the islands so the wallpaper sits below them in the same compositor pass.
   m_backgrounds.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers);
-  m_islands.initialize(m_wayland, m_renderContext, m_config, m_textures, m_wallpapers);
+  m_islands.initialize(
+      m_wayland, m_renderContext, m_config, m_textures, m_wallpapers, m_media, m_notifications, m_tray, m_icons
+  );
+  m_tray.setChangeCallback([this] { m_islands.onTrayChanged(); });
+  m_tray.start();
+  m_notifications.setChangeCallback([this] { m_islands.onNotificationsChanged(); });
+  m_notifications.setPostedCallback([this](const NotificationEntry& entry) { m_islands.onNotificationPosted(entry); });
+  m_islands.setFocusedMonitorProvider([this] { return m_hyprland.focusedMonitor(); });
+  m_islands.setActionHandler([this](const std::string& action) { handleAction(action); });
+  m_media.setChangeCallback([this] { m_islands.onMediaChanged(); });
   m_wallpapers.setChangeCallback([this] {
+    applyUiPalette(m_wallpapers);
     m_backgrounds.refresh();
     m_islands.onWallpapersChanged();
   });
@@ -79,7 +91,7 @@ std::string Application::handleAction(const std::string& action) {
 }
 
 void Application::run() {
-  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config, &m_textures}; });
+  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config, &m_textures, &m_sessionBusSource, &m_httpSource, &m_hyprland}; });
   kLog.info("running");
   loop.run();
 }

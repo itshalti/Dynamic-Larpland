@@ -9,6 +9,7 @@
 #include "cpp/scheme/scheme_monochrome.h"
 #include "cpp/scheme/scheme_rainbow.h"
 #include "cpp/scheme/scheme_tonal_spot.h"
+#include "system/icon_resolver.h"
 #include "system/process.h"
 #include "theme/color.h"
 #include "theme/hook_runner.h"
@@ -40,12 +41,7 @@ namespace noctalia::theme {
 
   namespace {
 
-    // shortcut: the icon theme comes from $DYNAMIC_LARPLAND_ICON_THEME (set by the launch scripts), not from
-    // Noctalia's IconResolver; read the desktop setting directly if templates need it without the scripts.
-    std::string activeIconThemeName() {
-      const char* name = std::getenv("DYNAMIC_LARPLAND_ICON_THEME");
-      return name != nullptr ? std::string(name) : std::string();
-    }
+    std::string activeIconThemeName() { return IconResolver::activeThemeName(); }
 
     constexpr Logger kLog("template_engine");
 

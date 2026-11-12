@@ -15,6 +15,11 @@ The user decided to rewrite the island in **C++ on Noctalia's `noctalia-ui` libr
   surface per output, modes, `theme.h` tokens), `wayland/` (layer shell, from Noctalia).
 - `scripts/dev.sh` builds and runs the native binary in nested (log: `.dev/island.log`); drive it with
   `WAYLAND_DISPLAY=wayland-2 build/dynamic-larpland msg <action>`; ALT+I toggles.
+- Demo data on the nested bus: `dev/fake-player.py` (MPRIS) and `dev/fake-tray.py` (tray item with a DBusMenu),
+  started by hand with `hyprctl -i 1 dispatch "hl.dsp.exec_cmd(\"python3 $PWD/dev/fake-tray.py\")"`.
+- Pages hold raw node pointers in animations: `Islands::rebuildPage` cancels the whole subtree's animations
+  before destroying it — keep that when adding pages. Lambdas stored in nodes must never capture the
+  `PageContext` (it's a temporary); capture the services/callbacks they need.
 
 ## Stack (decided — don't change without asking)
 

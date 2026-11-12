@@ -35,8 +35,20 @@ struct WallpaperConfig {
   std::string current;
 };
 
+struct CalendarConfig {
+  // 0 = Sunday, 1 = Monday.
+  int firstDayOfWeek = 0;
+};
+
+struct NotificationsConfig {
+  int historyLimit = 100;
+  int popupTimeoutMs = 4000;
+};
+
 struct Config {
   IslandConfig island;
+  NotificationsConfig notifications;
+  CalendarConfig calendar;
   ThemeConfig theme;
   WallpaperConfig wallpaper;
 };

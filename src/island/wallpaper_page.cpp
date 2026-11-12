@@ -42,7 +42,7 @@ namespace {
 
 } // namespace
 
-std::unique_ptr<Node> buildWallpaperPage(const PageContext& ctx, float width, float height) {
+BuiltPage buildWallpaperPage(const PageContext& ctx, float width, float height) {
   auto page = std::make_unique<Node>();
   page->setSize(width, height);
 
@@ -131,5 +131,5 @@ std::unique_ptr<Node> buildWallpaperPage(const PageContext& ctx, float width, fl
     );
     return true;
   });
-  return page;
+  return {.node = std::move(page), .tick = {}};
 }

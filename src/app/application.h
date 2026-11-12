@@ -2,7 +2,16 @@
 
 #include "app/deferred_call_poll_source.h"
 #include "app/timer_poll_source.h"
+#include "compositors/hyprland.h"
 #include "config/config.h"
+#include "dbus/session_bus.h"
+#include "dbus/session_bus_poll_source.h"
+#include "dbus/tray_service.h"
+#include "system/icon_resolver.h"
+#include "net/http_client.h"
+#include "net/http_client_poll_source.h"
+#include "services/media_service.h"
+#include "services/notification_service.h"
 #include "ipc/ipc.h"
 #include "island/island.h"
 #include "services/wallpaper_service.h"
@@ -30,7 +39,16 @@ private:
   RenderContext m_renderContext;
   ConfigService m_config;
   WallpaperService m_wallpapers{m_config};
+  SessionBus m_sessionBus;
+  SessionBusPollSource m_sessionBusSource{m_sessionBus};
+  HttpClient m_http;
+  HttpClientPollSource m_httpSource{m_http};
+  MediaService m_media{m_sessionBus, m_http};
+  NotificationService m_notifications{m_sessionBus, m_config};
+  TrayService m_tray{m_sessionBus};
+  IconResolver m_icons{true};
   AsyncTextureCache m_textures;
+  HyprlandService m_hyprland;
   TimerPollSource m_timers;
   DeferredCallPollSource m_deferred;
   IpcServer m_ipc;

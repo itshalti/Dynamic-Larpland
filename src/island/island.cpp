@@ -1,10 +1,18 @@
 #include "island/island.h"
 
 #include "config/config.h"
+#include "core/deferred_call.h"
 #include "core/log.h"
 #include "core/ui_phase.h"
+#include "dbus/tray_service.h"
+#include "ui/controls/context_menu_popup.h"
+#include "wayland/layer_shell.h"
 #include "island/theme.h"
+#include "island/collapsed_page.h"
+#include "island/expanded_page.h"
+#include "island/media_pages.h"
 #include "island/wallpaper_page.h"
+#include "services/media_service.h"
 #include "render/render_context.h"
 #include "ui/controls/box.h"
 #include "ui/controls/label.h"
@@ -20,8 +28,9 @@ namespace {
 
   constexpr Logger kLog("island");
 
-  // Every mode except "collapsed" has a page. Order = creation order of the page nodes.
-  constexpr std::array<const char*, 5> kPageModes = {"expanded", "player", "calendar", "wallpapers", "power"};
+  // Every mode has a page. Order = creation order of the page nodes.
+  constexpr std::array<const char*, 6> kPageModes = {"collapsed", "expanded",   "player",
+                                                     "calendar",  "wallpapers", "power"};
 
   theme::Size sizeFor(const std::string& mode) {
     if (mode == "expanded") {
@@ -43,7 +52,14 @@ namespace {
   }
 
   bool isMode(const std::string& mode) {
-    return mode == "collapsed" || std::ranges::any_of(kPageModes, [&](const char* m) { return mode == m; });
+    return std::ranges::any_of(kPageModes, [&](const char* m) { return mode == m; });
+  }
+
+  void cancelAnimations(AnimationManager& animations, Node* node) {
+    animations.cancelForOwner(node);
+    for (const auto& child : node->children()) {
+      cancelAnimations(animations, child.get());
+    }
   }
 
   std::string formatTime(const std::string& format) {
@@ -57,10 +73,19 @@ namespace {
 
 } // namespace
 
+Islands::Islands() = default;
+Islands::~Islands() = default;
+
 void Islands::initialize(
     WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config, AsyncTextureCache& textures,
-    WallpaperService& wallpapers
+    WallpaperService& wallpapers, MediaService& media, NotificationService& notifications, TrayService& tray,
+    IconResolver& icons
 ) {
+  m_tray = &tray;
+  m_icons = &icons;
+  m_trayMenu = std::make_unique<ContextMenuPopup>(wayland, renderContext);
+  m_media = &media;
+  m_notifications = &notifications;
   m_wayland = &wayland;
   m_renderContext = &renderContext;
   m_config = &config;
@@ -69,6 +94,15 @@ void Islands::initialize(
   m_time = formatTime(m_config->config().island.timeFormat);
   createInstances();
   m_clockTimer.startRepeating(std::chrono::seconds(1), [this] { updateClock(); });
+  // Live values (playback position) of the page each island shows.
+  m_tickTimer.startRepeating(std::chrono::milliseconds(250), [this] {
+    for (auto& inst : m_instances) {
+      const auto it = inst->ticks.find(inst->mode);
+      if (it != inst->ticks.end() && it->second) {
+        it->second();
+      }
+    }
+  });
 }
 
 void Islands::onOutputsChanged() {
@@ -78,24 +112,181 @@ void Islands::onOutputsChanged() {
 
 void Islands::onConfigChanged() { updateClock(); }
 
+void Islands::onMediaChanged() {
+  for (auto& inst : m_instances) {
+    rebuildPage(*inst, "expanded");
+    rebuildPage(*inst, "player");
+    refreshCollapsed(*inst);
+  }
+}
+
+void Islands::onNotificationPosted(const NotificationEntry& entry) {
+  for (auto& inst : m_instances) {
+    if (inst->mode != "collapsed") {
+      continue;
+    }
+    inst->popup = entry;
+    Instance* raw = inst.get();
+    inst->popupTimer.start(std::chrono::milliseconds(m_config->config().notifications.popupTimeoutMs), [this, raw] {
+      raw->popup.reset();
+      refreshCollapsed(*raw);
+    });
+    refreshCollapsed(*inst);
+  }
+}
+
+theme::Size Islands::targetSize(const Instance& inst, const std::string& mode) const {
+  if (mode != "collapsed") {
+    return sizeFor(mode);
+  }
+  if (inst.popup) {
+    return theme::collapsedNotifSize;
+  }
+  return m_media->playing() ? theme::collapsedMediaSize : theme::collapsedSize;
+}
+
+void Islands::refreshCollapsed(Instance& inst) {
+  rebuildPage(inst, "collapsed");
+  if (inst.mode == "collapsed") {
+    morphTo(inst);
+  }
+}
+
+void Islands::onTrayChanged() {
+  for (auto& inst : m_instances) {
+    rebuildPage(*inst, "expanded");
+  }
+  // Entries of a requested menu arrived: open it now (unless the request is stale).
+  if (m_pendingMenu && std::chrono::steady_clock::now() - m_pendingMenu->requestedAt < std::chrono::seconds(2)) {
+    const PendingMenu pending = *m_pendingMenu;
+    m_pendingMenu.reset();
+    openTrayMenu(*pending.inst, pending.itemId, pending.x, pending.y, pending.w, pending.h, pending.parentId);
+  }
+}
+
+void Islands::openTrayMenu(
+    Instance& inst, const std::string& itemId, float x, float y, float w, float h, std::int32_t parentId
+) {
+  std::vector<ContextMenuControlEntry> entries;
+  for (const auto& e : parentId == 0 ? m_tray->menuEntries(itemId) : m_tray->menuEntriesForParent(itemId, parentId)) {
+    if (!e.visible) {
+      continue;
+    }
+    entries.push_back(ContextMenuControlEntry{
+        .id = e.id,
+        .label = e.label,
+        .enabled = e.enabled,
+        .separator = e.separator,
+        .hasSubmenu = e.hasSubmenu,
+        .checkmark = e.checkmark,
+        .radio = e.radio,
+        .toggleState = e.toggleState,
+    });
+  }
+  if (entries.empty()) {
+    // The service is fetching the layout; retry once it reports the change.
+    m_pendingMenu = PendingMenu{&inst, itemId, x, y, w, h, parentId, std::chrono::steady_clock::now()};
+    return;
+  }
+  m_pendingMenu.reset();
+  // Page coordinates -> surface coordinates (pages sit centered in the pill).
+  const auto pageIt = inst.pages.find(inst.mode);
+  const float offsetX = inst.pill->x() + (pageIt != inst.pages.end() ? pageIt->second->x() : 0.0F);
+  Instance* raw = &inst;
+  m_trayMenu->setOnActivate([this, raw, itemId, x, y, w, h](const ContextMenuControlEntry& entry) {
+    if (entry.hasSubmenu) {
+      DeferredCall::callLater([this, raw, itemId, x, y, w, h, id = entry.id] {
+        openTrayMenu(*raw, itemId, x, y, w, h, id);
+      });
+      return;
+    }
+    (void)m_tray->activateMenuEntry(itemId, entry.id);
+  });
+  m_trayMenu->setOnDismissed([this, raw, itemId] {
+    m_menuOpen = false;
+    m_tray->notifyMenuClosed(itemId);
+    if (!raw->hovered && raw->mode != "collapsed") {
+      scheduleClose(*raw);
+    }
+  });
+  auto& layerShell = m_wayland->extension<LayerShell>();
+  m_trayMenu->open(ContextMenuPopupRequest{
+      .entries = std::move(entries),
+      .minMenuWidth = 180.0F,
+      .maxMenuWidth = 340.0F,
+      .anchor = {.x = static_cast<std::int32_t>(offsetX + x),
+                 .y = static_cast<std::int32_t>(inst.pill->y() + y),
+                 .width = static_cast<std::int32_t>(w),
+                 .height = static_cast<std::int32_t>(h)},
+      .parent = {.attach = LayerShell::popupAttach(inst.surface->layerSurface()),
+                 .output = inst.output,
+                 .keyboardGrab = layerShell.popupKeyboardGrab(inst.surface->wlSurface())},
+      .pointerParentSurface = inst.surface->wlSurface(),
+  });
+  m_menuOpen = m_trayMenu->isOpen();
+  inst.closeTimer.stop();
+  m_tray->notifyMenuOpened(itemId, parentId);
+}
+
+void Islands::onNotificationsChanged() {
+  for (auto& inst : m_instances) {
+    rebuildPage(*inst, "expanded");
+  }
+}
+
+void Islands::runAction(Instance& inst, const std::string& action) {
+  if (action.starts_with("rebuild:")) {
+    rebuildPage(inst, action.substr(8));
+  } else if (isMode(action)) {
+    setMode(inst, action);
+  } else if (m_actionHandler) {
+    m_actionHandler(action);
+  }
+}
+
 void Islands::onWallpapersChanged() {
   for (auto& inst : m_instances) {
     rebuildPage(*inst, "wallpapers");
   }
 }
 
-std::unique_ptr<Node> Islands::buildPage(Instance& inst, const std::string& mode) {
-  const auto size = sizeFor(mode);
+BuiltPage Islands::buildPage(Instance& inst, const std::string& mode) {
+  const auto size = targetSize(inst, mode);
   Instance* raw = &inst;
   const PageContext ctx{
       .renderer = inst.surface->renderTarget().renderer(),
       .animations = inst.animations,
       .textures = *m_textures,
       .wallpapers = *m_wallpapers,
+      .media = *m_media,
+      .notifications = *m_notifications,
+      .tray = *m_tray,
+      .icons = *m_icons,
       .requestRedraw = [raw] { raw->surface->requestRedraw(); },
+      // Deferred: an action may rebuild the page whose button triggered it.
+      .action = [this, raw](const std::string& action) {
+        DeferredCall::callLater([this, raw, action] { runAction(*raw, action); });
+      },
+      .openTrayMenu =
+          [this, raw](const std::string& itemId, float x, float y, float w, float h) {
+            DeferredCall::callLater([this, raw, itemId, x, y, w, h] { openTrayMenu(*raw, itemId, x, y, w, h); });
+          },
+      .firstDayOfWeek = m_config->config().calendar.firstDayOfWeek,
   };
+  if (mode == "collapsed") {
+    return buildCollapsedPage(ctx, m_time, inst.popup ? &*inst.popup : nullptr, size.width, size.height);
+  }
+  if (mode == "calendar") {
+    return buildMonthPage(ctx, m_calendar, size.width, size.height);
+  }
   if (mode == "wallpapers") {
     return buildWallpaperPage(ctx, size.width, size.height);
+  }
+  if (mode == "expanded") {
+    return buildExpandedPage(ctx, m_calendar, size.width, size.height);
+  }
+  if (mode == "player") {
+    return buildPlayerPage(ctx, size.width, size.height);
   }
   // shortcut: placeholder title until the real page content lands (milestones 4-5).
   auto page = std::make_unique<Node>();
@@ -107,7 +298,7 @@ std::unique_ptr<Node> Islands::buildPage(Instance& inst, const std::string& mode
   title->measure(ctx.renderer);
   title->setPosition(28.0F, 20.0F);
   page->addChild(std::move(title));
-  return page;
+  return {.node = std::move(page), .tick = {}};
 }
 
 void Islands::rebuildPage(Instance& inst, const std::string& mode) {
@@ -116,12 +307,16 @@ void Islands::rebuildPage(Instance& inst, const std::string& mode) {
     return;
   }
   UiPhaseScope layoutPhase(UiPhase::Layout);
-  const float opacity = it->second->opacity();
-  inst.animations.cancelForOwner(it->second);
-  inst.pill->removeChild(it->second);
+  // Animations hold raw node pointers (owner = node): stop every one in the subtree before it is destroyed.
+  cancelAnimations(inst.animations, it->second);
   auto page = buildPage(inst, mode);
-  page->setOpacity(opacity);
-  it->second = inst.pill->addChild(std::move(page));
+  // A rebuild lands in the final state of the current mode (a fade in progress is not resumed).
+  const bool shown = inst.mode == mode;
+  page.node->setOpacity(shown ? 1.0F : 0.0F);
+  page.node->setVisible(shown);
+  inst.ticks[mode] = std::move(page.tick);
+  inst.pill->removeChild(it->second);
+  it->second = inst.pill->addChild(std::move(page.node));
   applyGeometry(inst);
 }
 
@@ -132,6 +327,7 @@ void Islands::createInstances() {
     }
     auto inst = std::make_unique<Instance>();
     inst->output = output.output;
+    inst->connector = output.connectorName;
     inst->width = theme::collapsedSize.width;
     inst->height = theme::collapsedSize.height;
     inst->radius = theme::collapsedSize.height / 2.0F;
@@ -183,19 +379,15 @@ void Islands::buildScene(Instance& inst) {
   pill->setClipChildren(true);
   inst.pill = static_cast<Box*>(root->addChild(std::move(pill)));
 
-  auto clock = std::make_unique<Label>();
-  clock->setFontSize(theme::clockFontSize);
-  clock->setColor(theme::textPrimary);
-  clock->setText(m_time);
-  inst.clock = static_cast<Label*>(inst.pill->addChild(std::move(clock)));
-
   // Each page is laid out at its mode's final size, so nothing reflows while the pill morphs.
   for (const char* mode : kPageModes) {
     auto page = buildPage(inst, mode);
-    page->setOpacity(0.0F);
+    const bool shown = inst.mode == mode;
+    page.node->setOpacity(shown ? 1.0F : 0.0F);
     // Hidden pages must not take clicks.
-    page->setVisible(false);
-    inst.pages[mode] = inst.pill->addChild(std::move(page));
+    page.node->setVisible(shown);
+    inst.ticks[mode] = std::move(page.tick);
+    inst.pages[mode] = inst.pill->addChild(std::move(page.node));
   }
 
   inst.root = std::move(root);
@@ -213,12 +405,6 @@ void Islands::applyGeometry(Instance& inst) {
     inst.pill->setPosition(x, 0.0F);
     inst.pill->setSize(inst.width, inst.height);
     inst.pill->setRadius(inst.radius);
-  }
-  if (inst.clock != nullptr) {
-    inst.clock->measure(inst.surface->renderTarget().renderer());
-    inst.clock->setPosition(
-        (inst.width - inst.clock->width()) / 2.0F, (theme::collapsedSize.height - inst.clock->height()) / 2.0F
-    );
   }
   for (auto& [mode, page] : inst.pages) {
     page->setPosition((inst.width - page->width()) / 2.0F, 0.0F);
@@ -240,29 +426,25 @@ void Islands::setMode(Instance& inst, const std::string& mode) {
     return;
   }
   const std::string previous = inst.mode;
+  // Calendar views start at today whenever they open again (rebuilt while still hidden, so they fade in).
+  if (mode == "expanded" && previous == "collapsed" && m_calendar.stripOffset != 0) {
+    m_calendar.stripOffset = 0;
+    rebuildPage(inst, "expanded");
+  }
+  if (mode == "calendar") {
+    m_calendar.shownMonth = {};
+    rebuildPage(inst, "calendar");
+  }
+  // Opening the island replaces the notification live activity.
+  if (previous == "collapsed" && inst.popup) {
+    inst.popup.reset();
+    inst.popupTimer.stop();
+    rebuildPage(inst, "collapsed");
+  }
   inst.mode = mode;
   inst.modeChangedAt = std::chrono::steady_clock::now();
-
-  // Morph width, height and radius together.
-  const auto target = sizeFor(mode);
-  const float targetRadius = mode == "collapsed" ? target.height / 2.0F : theme::expandedRadius;
-  const float fromW = inst.width;
-  const float fromH = inst.height;
-  const float fromR = inst.radius;
-  if (inst.morph != 0) {
-    inst.animations.cancel(inst.morph);
-  }
+  morphTo(inst);
   Instance* raw = &inst;
-  inst.morph = inst.animations.animate(
-      0.0F, 1.0F, theme::animMorphMs, Easing::EaseOutCubic,
-      [this, raw, fromW, fromH, fromR, target, targetRadius](float t) {
-        raw->width = fromW + (target.width - fromW) * t;
-        raw->height = fromH + (target.height - fromH) * t;
-        raw->radius = fromR + (targetRadius - fromR) * t;
-        applyGeometry(*raw);
-      },
-      [raw] { raw->morph = 0; }, raw
-  );
 
   // Cross-fade: the old content fades out fast, the new one a little slower.
   auto fade = [raw](Node* node, float to, float durationMs) {
@@ -281,14 +463,35 @@ void Islands::setMode(Instance& inst, const std::string& mode) {
     );
   };
   auto content = [raw](const std::string& m) -> Node* {
-    if (m == "collapsed") {
-      return raw->clock;
-    }
     const auto it = raw->pages.find(m);
     return it != raw->pages.end() ? it->second : nullptr;
   };
   fade(content(previous), 0.0F, theme::animFadeMs);
   fade(content(mode), 1.0F, theme::animFadeMs * 1.6F);
+  inst.surface->requestRedraw();
+}
+
+void Islands::morphTo(Instance& inst) {
+  // Morph width, height and radius together.
+  const auto target = targetSize(inst, inst.mode);
+  const float targetRadius = inst.mode == "collapsed" ? target.height / 2.0F : theme::expandedRadius;
+  const float fromW = inst.width;
+  const float fromH = inst.height;
+  const float fromR = inst.radius;
+  if (inst.morph != 0) {
+    inst.animations.cancel(inst.morph);
+  }
+  Instance* raw = &inst;
+  inst.morph = inst.animations.animate(
+      0.0F, 1.0F, theme::animMorphMs, Easing::EaseOutCubic,
+      [this, raw, fromW, fromH, fromR, target, targetRadius](float t) {
+        raw->width = fromW + (target.width - fromW) * t;
+        raw->height = fromH + (target.height - fromH) * t;
+        raw->radius = fromR + (targetRadius - fromR) * t;
+        applyGeometry(*raw);
+      },
+      [raw] { raw->morph = 0; }, raw
+  );
   inst.surface->requestRedraw();
 }
 
@@ -298,29 +501,46 @@ void Islands::scheduleClose(Instance& inst) {
                                                                                         : theme::hoverCloseDelayMs;
   Instance* raw = &inst;
   inst.closeTimer.start(std::chrono::milliseconds(delay), [this, raw] {
-    if (!raw->hovered) {
+    if (!raw->hovered && !m_menuOpen) {
       setMode(*raw, "collapsed");
     }
   });
+}
+
+std::vector<Islands::Instance*> Islands::targets() {
+  const std::string focused = m_focusedMonitor ? m_focusedMonitor() : std::string();
+  std::vector<Instance*> out;
+  for (auto& inst : m_instances) {
+    if (focused.empty() || inst->connector == focused) {
+      out.push_back(inst.get());
+    }
+  }
+  // Unknown connector names (e.g. a nested session): fall back to every island.
+  if (out.empty()) {
+    for (auto& inst : m_instances) {
+      out.push_back(inst.get());
+    }
+  }
+  return out;
 }
 
 void Islands::setMode(const std::string& mode) {
   if (!isMode(mode)) {
     return;
   }
-  for (auto& inst : m_instances) {
+  for (Instance* inst : targets()) {
     setMode(*inst, mode);
   }
 }
 
 void Islands::toggleMode(const std::string& mode) {
-  for (auto& inst : m_instances) {
+  for (Instance* inst : targets()) {
     setMode(*inst, inst->mode == mode ? std::string("collapsed") : mode);
   }
 }
 
 void Islands::toggle() {
-  for (auto& inst : m_instances) {
+  for (Instance* inst : targets()) {
     setMode(*inst, inst->mode == "collapsed" ? std::string("expanded") : std::string("collapsed"));
   }
 }
@@ -332,14 +552,14 @@ void Islands::updateClock() {
   }
   m_time = now;
   for (auto& inst : m_instances) {
-    if (inst->clock != nullptr) {
-      inst->clock->setText(m_time);
-      applyGeometry(*inst);
-    }
+    rebuildPage(*inst, "collapsed");
   }
 }
 
 bool Islands::onPointerEvent(const PointerEvent& event) {
+  if (m_trayMenu && m_trayMenu->onPointerEvent(event)) {
+    return true;
+  }
   for (auto& inst : m_instances) {
     if (event.surface != inst->surface->wlSurface()) {
       continue;
@@ -392,6 +612,10 @@ bool Islands::onPointerEvent(const PointerEvent& event) {
 }
 
 bool Islands::onKeyboardEvent(const KeyboardEvent& event) {
+  if (m_trayMenu && m_trayMenu->isOpen()) {
+    m_trayMenu->onKeyboardEvent(event);
+    return true;
+  }
   if (!event.pressed || event.sym != XKB_KEY_Escape) {
     return false;
   }

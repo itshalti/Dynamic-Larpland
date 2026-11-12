@@ -25,6 +25,12 @@ namespace {
              {"hover_delay_ms", c.island.hoverDelayMs},
              {"time_format", c.island.timeFormat},
          }},
+        {"calendar", toml::table{{"first_day_of_week", c.calendar.firstDayOfWeek}}},
+        {"notifications",
+         toml::table{
+             {"history_limit", c.notifications.historyLimit},
+             {"popup_timeout_ms", c.notifications.popupTimeoutMs},
+         }},
         {"theme",
          toml::table{
              {"scheme", c.theme.scheme},
@@ -46,6 +52,10 @@ namespace {
     c.island.hoverExpand = island["hover_expand"].value_or(c.island.hoverExpand);
     c.island.hoverDelayMs = island["hover_delay_ms"].value_or(c.island.hoverDelayMs);
     c.island.timeFormat = island["time_format"].value_or(c.island.timeFormat);
+    c.calendar.firstDayOfWeek = t["calendar"]["first_day_of_week"].value_or(c.calendar.firstDayOfWeek);
+    const auto notifications = t["notifications"];
+    c.notifications.historyLimit = notifications["history_limit"].value_or(c.notifications.historyLimit);
+    c.notifications.popupTimeoutMs = notifications["popup_timeout_ms"].value_or(c.notifications.popupTimeoutMs);
     const auto theme = t["theme"];
     c.theme.scheme = theme["scheme"].value_or(c.theme.scheme);
     c.theme.mode = theme["mode"].value_or(c.theme.mode);
