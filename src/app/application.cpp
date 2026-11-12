@@ -1,6 +1,7 @@
 #include "app/application.h"
 
 #include "app/main_loop.h"
+#include "compositors/keybinds.h"
 #include "island/ui_palette.h"
 #include "system/process.h"
 #include "core/log.h"
@@ -63,7 +64,9 @@ Application::Application() {
     m_backgrounds.refresh();
     m_islands.onWallpapersChanged();
   });
+  keybinds::writeHyprland(m_config.config());
   m_config.setChangeCallback([this] {
+    keybinds::writeHyprland(m_config.config());
     m_islands.onConfigChanged();
     m_wallpapers.onConfigChanged();
   });
@@ -73,16 +76,25 @@ Application::Application() {
   });
   m_launcher.initialize(m_wayland, m_renderContext, m_textures, m_icons, m_wallpapers);
   m_lockScreen.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers, m_config);
+  m_settings.initialize(m_wayland, m_renderContext, m_config, m_wallpapers, m_notifications);
+  m_wayland.setKeyboardFocusCallback([this](wl_surface* surface, bool entered) {
+    m_keyboardFocus = entered ? surface : (m_keyboardFocus == surface ? nullptr : m_keyboardFocus);
+  });
   // The lock screen, then the launcher (both grab the keyboard), get input first.
   m_wayland.setPointerEventCallback([this](const PointerEvent& event) {
-    if (!m_lockScreen.onPointerEvent(event) && !m_launcher.onPointerEvent(event)) {
+    if (!m_lockScreen.onPointerEvent(event) && !m_launcher.onPointerEvent(event)
+        && !m_settings.onPointerEvent(event)) {
       m_islands.onPointerEvent(event);
     }
   });
   m_wayland.setKeyboardEventCallback([this](const KeyboardEvent& event) {
-    if (!m_lockScreen.onKeyboardEvent(event) && !m_launcher.onKeyboardEvent(event)) {
-      m_islands.onKeyboardEvent(event);
+    if (m_lockScreen.onKeyboardEvent(event) || m_launcher.onKeyboardEvent(event)) {
+      return;
     }
+    if (m_settings.ownsSurface(m_keyboardFocus) && m_settings.onKeyboardEvent(event)) {
+      return;
+    }
+    m_islands.onKeyboardEvent(event);
   });
 
   m_ipc.start([this](const std::string& action) { return handleAction(action); });
@@ -102,6 +114,8 @@ std::string Application::handleAction(const std::string& action) {
   } else if (action == "lock") {
     m_launcher.close();
     m_lockScreen.lock();
+  } else if (action == "settings") {
+    m_settings.toggle(m_islands.targetConnector());
   } else if (action == "launcher") {
     m_launcher.toggle(m_islands.targetConnector());
   } else if (action == "record") {

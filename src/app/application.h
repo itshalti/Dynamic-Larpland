@@ -17,6 +17,7 @@
 #include "island/island.h"
 #include "launcher/launcher.h"
 #include "lock/lock_screen.h"
+#include "settings/settings_window.h"
 #include "services/wallpaper_service.h"
 #include "wallpaper/background.h"
 #include "render/core/async_texture_cache.h"
@@ -61,4 +62,6 @@ private:
   Islands m_islands;
   Launcher m_launcher;
   LockScreen m_lockScreen;
+  SettingsWindow m_settings;
+  struct wl_surface* m_keyboardFocus = nullptr;
 };

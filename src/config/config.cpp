@@ -18,7 +18,12 @@ namespace {
     for (const auto& id : c.theme.templates) {
       templates.push_back(id);
     }
+    toml::table binds;
+    for (const auto& [action, keys] : c.keybinds) {
+      binds.insert(action, keys);
+    }
     return toml::table{
+        {"keybinds", binds},
         {"island",
          toml::table{
              {"hover_expand", c.island.hoverExpand},
@@ -54,6 +59,13 @@ namespace {
     c.island.hoverExpand = island["hover_expand"].value_or(c.island.hoverExpand);
     c.island.hoverDelayMs = island["hover_delay_ms"].value_or(c.island.hoverDelayMs);
     c.island.timeFormat = island["time_format"].value_or(c.island.timeFormat);
+    if (const auto* binds = t["keybinds"].as_table()) {
+      for (const auto& [action, value] : *binds) {
+        if (const auto keys = value.value<std::string>()) {
+          c.keybinds[std::string(action.str())] = *keys;
+        }
+      }
+    }
     c.calendar.firstDayOfWeek = t["calendar"]["first_day_of_week"].value_or(c.calendar.firstDayOfWeek);
     c.recorder.dir = t["recorder"]["dir"].value_or(c.recorder.dir);
     c.recorder.fps = t["recorder"]["fps"].value_or(c.recorder.fps);

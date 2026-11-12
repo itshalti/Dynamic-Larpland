@@ -2,7 +2,7 @@
 //   dynamic-larpland              run the island
 //   dynamic-larpland theme <image>  palette JSON / apply app templates (see --help)
 //   dynamic-larpland msg <action> send an action to the running island (toggle, expand, collapse,
-//                                 player, calendar, wallpapers, power, launcher, record, lock, quit,
+//                                 player, calendar, wallpapers, power, launcher, settings, record, lock, quit,
 //                                 wallpaper <path>)
 #include "app/application.h"
 #include "app/library.h"

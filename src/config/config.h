@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <string>
+#include <map>
 #include <vector>
 
 // User settings in ~/.config/dynamic-larpland/config.toml. The defaults are the member initializers
@@ -58,6 +59,11 @@ struct Config {
   NotificationsConfig notifications;
   CalendarConfig calendar;
   RecorderConfig recorder;
+  // action -> Hyprland key combo ("SUPER + Space"); "" = unbound. See compositors/keybinds.h.
+  std::map<std::string, std::string> keybinds = {
+      {"launcher", "SUPER + Space"}, {"toggle", ""}, {"player", ""}, {"calendar", ""},
+      {"wallpapers", ""},            {"lock", ""},   {"record", ""},
+  };
   ThemeConfig theme;
   WallpaperConfig wallpaper;
 };
