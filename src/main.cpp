@@ -1,6 +1,7 @@
 // Dynamic-Larpland: a Dynamic Island for Wayland compositors.
 //   dynamic-larpland              run the island
-//   dynamic-larpland msg <action> send an action to the running island (toggle, expand, collapse, quit)
+//   dynamic-larpland msg <action> send an action to the running island (toggle, expand, collapse,
+//                                 player, calendar, wallpapers, power, quit)
 #include "app/application.h"
 #include "app/library.h"
 #include "app/main_loop.h"

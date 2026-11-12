@@ -17,6 +17,10 @@ namespace theme {
 
   inline constexpr Size collapsedSize{116.0F, 34.0F};
   inline constexpr Size expandedSize{1040.0F, 232.0F};
+  inline constexpr Size playerSize{470.0F, 196.0F};
+  inline constexpr Size calendarSize{440.0F, 414.0F};
+  inline constexpr Size wallpapersSize{1040.0F, 232.0F};
+  inline constexpr Size powerSize{560.0F, 184.0F};
   inline constexpr float expandedRadius = 36.0F;
   inline constexpr int topMargin = 6;
 
@@ -27,5 +31,12 @@ namespace theme {
   inline constexpr float clockFontSize = 15.0F;
 
   inline constexpr float animMorphMs = 420.0F;
+  inline constexpr float animFadeMs = 160.0F;
+
+  // Interaction timing. Leaving the pill within modeSwitchGraceMs of a page switch (the pill resizes
+  // under the pointer) collapses only after modeSwitchCloseDelayMs.
+  inline constexpr int hoverCloseDelayMs = 300;
+  inline constexpr int modeSwitchGraceMs = 1200;
+  inline constexpr int modeSwitchCloseDelayMs = 1500;
 
 } // namespace theme

@@ -26,9 +26,11 @@ Application::Application() {
   m_glShared.initialize(m_wayland.display());
   m_renderContext.initialize(m_glShared);
 
-  m_islands.initialize(m_wayland, m_renderContext);
+  m_islands.initialize(m_wayland, m_renderContext, m_config);
+  m_config.setChangeCallback([this] { m_islands.onConfigChanged(); });
   m_wayland.setOutputChangeCallback([this] { m_islands.onOutputsChanged(); });
   m_wayland.setPointerEventCallback([this](const PointerEvent& event) { m_islands.onPointerEvent(event); });
+  m_wayland.setKeyboardEventCallback([this](const KeyboardEvent& event) { m_islands.onKeyboardEvent(event); });
 
   m_ipc.start([this](const std::string& action) { return handleAction(action); });
 }
@@ -39,9 +41,11 @@ std::string Application::handleAction(const std::string& action) {
   if (action == "toggle") {
     m_islands.toggle();
   } else if (action == "expand") {
-    m_islands.setExpanded(true);
+    m_islands.setMode("expanded");
   } else if (action == "collapse") {
-    m_islands.setExpanded(false);
+    m_islands.setMode("collapsed");
+  } else if (action == "player" || action == "calendar" || action == "wallpapers" || action == "power") {
+    m_islands.toggleMode(action);
   } else if (action == "quit") {
     MainLoop::requestQuit();
   } else {
@@ -51,7 +55,7 @@ std::string Application::handleAction(const std::string& action) {
 }
 
 void Application::run() {
-  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc}; });
+  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config}; });
   kLog.info("running");
   loop.run();
 }

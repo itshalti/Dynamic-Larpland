@@ -2,6 +2,7 @@
 
 #include "app/deferred_call_poll_source.h"
 #include "app/timer_poll_source.h"
+#include "config/config.h"
 #include "ipc/ipc.h"
 #include "island/island.h"
 #include "render/gl_shared_context.h"
@@ -24,6 +25,7 @@ private:
   WaylandConnection m_wayland;
   GlSharedContext m_glShared;
   RenderContext m_renderContext;
+  ConfigService m_config;
   TimerPollSource m_timers;
   DeferredCallPollSource m_deferred;
   IpcServer m_ipc;

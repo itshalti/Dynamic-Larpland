@@ -15,20 +15,9 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dev="$repo/.dev"
 mkdir -p "$dev/config/dynamic-larpland" "$dev/state"
 
-# SUPER is taken by the host compositor, so default the dev keybinds to ALT.
-config="$dev/config/dynamic-larpland/config.json"
-if [[ ! -f "$config" ]]; then
-    cat >"$config" <<'EOF'
-{
-    "keybinds": {
-        "launcher": "ALT + Space",
-        "toggle": "ALT + I",
-        "player": "",
-        "calendar": ""
-    }
-}
-EOF
-fi
+# Build the native island first; the nested session runs build/dynamic-larpland.
+[[ -d "$repo/build" ]] || meson setup "$repo/build" "$repo"
+ninja -C "$repo/build"
 
 # Detect the icon theme with the real config dir before the session overrides XDG_CONFIG_HOME.
 if [[ -z "${DYNAMIC_LARPLAND_ICON_THEME:-}" ]] && command -v gsettings >/dev/null 2>&1; then

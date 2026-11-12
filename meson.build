@@ -28,6 +28,7 @@ sources = files(
   'src/app/application.cpp',
   'src/app/library.cpp',
   'src/app/main_loop.cpp',
+  'src/config/config.cpp',
   'src/ipc/ipc.cpp',
   'src/island/island.cpp',
   'src/wayland/layer_shell.cpp',
@@ -36,7 +37,7 @@ sources = files(
 
 executable('dynamic-larpland',
   sources + protocol_sources + protocol_headers,
-  dependencies: [noctalia_ui_dep, noctalia_ui_codecs_dep],
+  dependencies: [noctalia_ui_dep, noctalia_ui_codecs_dep, dependency('tomlplusplus')],
   include_directories: include_directories('src'),
   # shortcut: assets are read from the source tree, fine for development; install them for packaging (milestone 7).
   cpp_args: [

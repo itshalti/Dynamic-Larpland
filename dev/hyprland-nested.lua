@@ -39,10 +39,13 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("qs -p " .. repo .. "/dev/wallpaper")
     -- The island keeps its config/state under .dev so the real ~/.config is never touched.
     hl.exec_cmd("env XDG_CONFIG_HOME=" .. dev .. "/config XDG_STATE_HOME=" .. dev .. "/state "
-        .. repo .. "/scripts/run.sh")
+        .. repo .. "/build/dynamic-larpland > " .. dev .. "/island.log 2>&1")
 end)
 
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd("kitty"))
+-- Island actions go through its IPC socket (dynamic-larpland msg <action>).
+local island = repo .. "/build/dynamic-larpland msg "
+hl.bind(mod .. " + I", hl.dsp.exec_cmd(island .. "toggle"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + SHIFT + E", hl.dsp.exit())
 hl.bind(mod .. " + N", hl.dsp.exec_cmd("notify-send -a Dev 'Test notification' 'Sent from the nested session'"))

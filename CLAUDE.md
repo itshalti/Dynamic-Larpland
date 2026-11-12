@@ -4,6 +4,18 @@ Dynamic-Larpland is a macOS **Dynamic Island / NotchNook**-style widget for Linu
 It sits as a black pill at the top center of every screen, shows the time when idle, and smoothly expands into a
 panel with media controls, a calendar, notification history, the system tray, settings and an app launcher.
 
+## Native rewrite in progress (branch `cpp-rewrite`)
+
+The user decided to rewrite the island in **C++ on Noctalia's `noctalia-ui` library** (MIT, vendored verbatim in
+`lib/` — never edit it; attribution in `CREDITS.md`). Plan: `~/.claude/plans/logical-enchanting-minsky.md`
+(milestones 1–7; the QML tree below stays until milestone 7). On this branch:
+- Build: `meson setup build && ninja -C build` (deps: meson, ninja, stb + the libs Noctalia uses).
+- `src/` = native code: `app/` (main loop, bootstrap), `config/` (TOML at `~/.config/dynamic-larpland/config.toml`,
+  inotify reload), `ipc/` (socket `$XDG_RUNTIME_DIR/dynamic-larpland-$WAYLAND_DISPLAY.sock`), `island/` (layer
+  surface per output, modes, `theme.h` tokens), `wayland/` (layer shell, from Noctalia).
+- `scripts/dev.sh` builds and runs the native binary in nested (log: `.dev/island.log`); drive it with
+  `WAYLAND_DISPLAY=wayland-2 build/dynamic-larpland msg <action>`; ALT+I toggles.
+
 ## Stack (decided — don't change without asking)
 
 - **Quickshell** (>= 0.2, QML + JavaScript on Qt 6). Pure QML, **no Rust / C++** for now. A native helper may be
