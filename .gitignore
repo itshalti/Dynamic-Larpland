@@ -16,3 +16,4 @@
 
 # Nested dev session state (scripts/dev.sh)
 .dev/
+build/
