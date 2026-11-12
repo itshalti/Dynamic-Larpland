@@ -3,6 +3,7 @@
 #include "core/log.h"
 #include "util/file_utils.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <toml++/toml.hpp>
@@ -13,12 +14,28 @@ namespace {
   constexpr const char* kFileName = "config.toml";
 
   toml::table toTable(const Config& c) {
+    toml::array templates;
+    for (const auto& id : c.theme.templates) {
+      templates.push_back(id);
+    }
     return toml::table{
         {"island",
          toml::table{
              {"hover_expand", c.island.hoverExpand},
              {"hover_delay_ms", c.island.hoverDelayMs},
              {"time_format", c.island.timeFormat},
+         }},
+        {"theme",
+         toml::table{
+             {"scheme", c.theme.scheme},
+             {"mode", c.theme.mode},
+             {"builtin_templates", c.theme.builtinTemplates},
+             {"templates", templates},
+         }},
+        {"wallpaper",
+         toml::table{
+             {"dir", c.wallpaper.dir},
+             {"current", c.wallpaper.current},
          }},
     };
   }
@@ -29,10 +46,32 @@ namespace {
     c.island.hoverExpand = island["hover_expand"].value_or(c.island.hoverExpand);
     c.island.hoverDelayMs = island["hover_delay_ms"].value_or(c.island.hoverDelayMs);
     c.island.timeFormat = island["time_format"].value_or(c.island.timeFormat);
+    const auto theme = t["theme"];
+    c.theme.scheme = theme["scheme"].value_or(c.theme.scheme);
+    c.theme.mode = theme["mode"].value_or(c.theme.mode);
+    c.theme.builtinTemplates = theme["builtin_templates"].value_or(c.theme.builtinTemplates);
+    if (const auto* arr = theme["templates"].as_array()) {
+      for (const auto& v : *arr) {
+        if (const auto id = v.value<std::string>()) {
+          c.theme.templates.push_back(*id);
+        }
+      }
+    }
+    const auto wallpaper = t["wallpaper"];
+    c.wallpaper.dir = wallpaper["dir"].value_or(c.wallpaper.dir);
+    c.wallpaper.current = wallpaper["current"].value_or(c.wallpaper.current);
     return c;
   }
 
 } // namespace
+
+std::string ConfigService::expandHome(const std::string& path) {
+  const char* home = std::getenv("HOME");
+  if (home != nullptr && path.starts_with("~")) {
+    return std::string(home) + path.substr(1);
+  }
+  return path;
+}
 
 std::string ConfigService::filePath() { return FileUtils::configDir() + "/" + kFileName; }
 

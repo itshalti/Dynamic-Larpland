@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render/core/color.h"
+#include "services/wallpaper_service.h"
 
 // Design tokens for the island. Every color, size, radius and timing comes from here.
 namespace theme {
@@ -8,7 +9,12 @@ namespace theme {
   inline constexpr Color surface = rgbHex(0x000000);
   inline constexpr Color textPrimary = rgbHex(0xffffff);
   inline constexpr Color textSecondary = rgbHex(0x8e8e93);
+  inline constexpr Color textTertiary = rgbHex(0x4a4a4e);
+  inline constexpr Color divider = rgbHex(0x232325);
   inline constexpr Color accent = rgbHex(0x3fd0b0);
+
+  // The accent follows the wallpaper palette once one was generated.
+  inline Color accentColor(const WallpaperService& wallpapers) { return wallpapers.accent().value_or(accent); }
 
   struct Size {
     float width;
@@ -29,9 +35,16 @@ namespace theme {
   inline constexpr int windowHeight = 420;
 
   inline constexpr float clockFontSize = 15.0F;
+  inline constexpr float smallFontSize = 12.0F;
+  inline constexpr float bodyFontSize = 14.0F;
+  inline constexpr float titleFontSize = 17.0F;
+
+  inline constexpr float radiusMedium = 14.0F;
 
   inline constexpr float animMorphMs = 420.0F;
   inline constexpr float animFadeMs = 160.0F;
+  inline constexpr float animWallpaperMs = 600.0F;
+  inline constexpr float animScrollMs = 260.0F;
 
   // Interaction timing. Leaving the pill within modeSwitchGraceMs of a page switch (the pill resizes
   // under the pointer) collapses only after modeSwitchCloseDelayMs.

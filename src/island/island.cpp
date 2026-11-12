@@ -4,6 +4,7 @@
 #include "core/log.h"
 #include "core/ui_phase.h"
 #include "island/theme.h"
+#include "island/wallpaper_page.h"
 #include "render/render_context.h"
 #include "ui/controls/box.h"
 #include "ui/controls/label.h"
@@ -56,10 +57,15 @@ namespace {
 
 } // namespace
 
-void Islands::initialize(WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config) {
+void Islands::initialize(
+    WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config, AsyncTextureCache& textures,
+    WallpaperService& wallpapers
+) {
   m_wayland = &wayland;
   m_renderContext = &renderContext;
   m_config = &config;
+  m_textures = &textures;
+  m_wallpapers = &wallpapers;
   m_time = formatTime(m_config->config().island.timeFormat);
   createInstances();
   m_clockTimer.startRepeating(std::chrono::seconds(1), [this] { updateClock(); });
@@ -71,6 +77,53 @@ void Islands::onOutputsChanged() {
 }
 
 void Islands::onConfigChanged() { updateClock(); }
+
+void Islands::onWallpapersChanged() {
+  for (auto& inst : m_instances) {
+    rebuildPage(*inst, "wallpapers");
+  }
+}
+
+std::unique_ptr<Node> Islands::buildPage(Instance& inst, const std::string& mode) {
+  const auto size = sizeFor(mode);
+  Instance* raw = &inst;
+  const PageContext ctx{
+      .renderer = inst.surface->renderTarget().renderer(),
+      .animations = inst.animations,
+      .textures = *m_textures,
+      .wallpapers = *m_wallpapers,
+      .requestRedraw = [raw] { raw->surface->requestRedraw(); },
+  };
+  if (mode == "wallpapers") {
+    return buildWallpaperPage(ctx, size.width, size.height);
+  }
+  // shortcut: placeholder title until the real page content lands (milestones 4-5).
+  auto page = std::make_unique<Node>();
+  page->setSize(size.width, size.height);
+  auto title = std::make_unique<Label>();
+  title->setFontSize(theme::clockFontSize);
+  title->setColor(theme::textSecondary);
+  title->setText(mode);
+  title->measure(ctx.renderer);
+  title->setPosition(28.0F, 20.0F);
+  page->addChild(std::move(title));
+  return page;
+}
+
+void Islands::rebuildPage(Instance& inst, const std::string& mode) {
+  const auto it = inst.pages.find(mode);
+  if (it == inst.pages.end() || inst.pill == nullptr) {
+    return;
+  }
+  UiPhaseScope layoutPhase(UiPhase::Layout);
+  const float opacity = it->second->opacity();
+  inst.animations.cancelForOwner(it->second);
+  inst.pill->removeChild(it->second);
+  auto page = buildPage(inst, mode);
+  page->setOpacity(opacity);
+  it->second = inst.pill->addChild(std::move(page));
+  applyGeometry(inst);
+}
 
 void Islands::createInstances() {
   for (const auto& output : m_wayland->outputs()) {
@@ -138,23 +191,19 @@ void Islands::buildScene(Instance& inst) {
 
   // Each page is laid out at its mode's final size, so nothing reflows while the pill morphs.
   for (const char* mode : kPageModes) {
-    const auto size = sizeFor(mode);
-    auto page = std::make_unique<Node>();
-    page->setSize(size.width, size.height);
+    auto page = buildPage(inst, mode);
     page->setOpacity(0.0F);
-    // shortcut: placeholder title until the real page content lands (milestones 3-5).
-    auto title = std::make_unique<Label>();
-    title->setFontSize(theme::clockFontSize);
-    title->setColor(theme::textSecondary);
-    title->setText(mode);
-    title->measure(inst.surface->renderTarget().renderer());
-    title->setPosition(28.0F, 20.0F);
-    page->addChild(std::move(title));
+    // Hidden pages must not take clicks.
+    page->setVisible(false);
     inst.pages[mode] = inst.pill->addChild(std::move(page));
   }
 
   inst.root = std::move(root);
   inst.surface->setSceneRoot(inst.root.get());
+  inst.input.setSceneRoot(inst.root.get());
+  inst.input.setCursorShapeCallback([this](std::uint32_t serial, std::uint32_t shape) {
+    m_wayland->setCursorShape(serial, shape);
+  });
   applyGeometry(inst);
 }
 
@@ -221,13 +270,14 @@ void Islands::setMode(Instance& inst, const std::string& mode) {
       return;
     }
     raw->animations.cancelForOwner(node);
+    node->setVisible(true);
     raw->animations.animate(
         node->opacity(), to, durationMs, Easing::EaseOutQuad,
         [raw, node](float v) {
           node->setOpacity(v);
           raw->surface->requestRedraw();
         },
-        {}, node
+        [node, to] { node->setVisible(to > 0.0F); }, node
     );
   };
   auto content = [raw](const std::string& m) -> Node* {
@@ -295,8 +345,11 @@ bool Islands::onPointerEvent(const PointerEvent& event) {
       continue;
     }
     Instance& i = *inst;
+    const auto x = static_cast<float>(event.sx);
+    const auto y = static_cast<float>(event.sy);
     switch (event.type) {
     case PointerEvent::Type::Enter:
+      i.input.pointerEnter(x, y, event.serial);
       i.hovered = true;
       i.closeTimer.stop();
       if (i.mode == "collapsed" && m_config->config().island.hoverExpand) {
@@ -307,16 +360,28 @@ bool Islands::onPointerEvent(const PointerEvent& event) {
       }
       break;
     case PointerEvent::Type::Leave:
+      i.input.pointerLeave();
       i.hovered = false;
       i.openTimer.stop();
       if (i.mode != "collapsed") {
         scheduleClose(i);
       }
       break;
+    case PointerEvent::Type::Motion:
+      i.input.pointerMotion(x, y, event.serial);
+      break;
     case PointerEvent::Type::Button:
       if (event.pressed && i.mode == "collapsed") {
         setMode(i, "expanded");
+        break;
       }
+      i.input.pointerButton(x, y, event.button, event.pressed, event.serial, event.time, event.touch);
+      break;
+    case PointerEvent::Type::Axis:
+      i.input.pointerAxis(
+          x, y, event.axis, event.axisSource, event.axisValue, event.axisDiscrete, event.axisValue120,
+          event.axisLines, event.axisGestureSerial
+      );
       break;
     default:
       break;

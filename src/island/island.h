@@ -2,6 +2,7 @@
 
 #include "core/timer_manager.h"
 #include "render/animation/animation_manager.h"
+#include "render/scene/input_dispatcher.h"
 #include "render/scene/node.h"
 #include "wayland/layer_surface.h"
 
@@ -11,10 +12,12 @@
 #include <unordered_map>
 #include <vector>
 
+class AsyncTextureCache;
 class Box;
 class ConfigService;
 class Label;
 class RenderContext;
+class WallpaperService;
 class WaylandConnection;
 struct KeyboardEvent;
 struct PointerEvent;
@@ -27,10 +30,15 @@ struct wl_output;
 // cross-fades in. Hover expands after island.hover_delay_ms, leaving collapses after a short delay.
 class Islands {
 public:
-  void initialize(WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config);
+  void initialize(
+      WaylandConnection& wayland, RenderContext& renderContext, ConfigService& config, AsyncTextureCache& textures,
+      WallpaperService& wallpapers
+  );
   // Re-creates the per-output surfaces after outputs were added or removed.
   void onOutputsChanged();
   void onConfigChanged();
+  // Wallpaper list, current wallpaper or palette changed: rebuild the pages that show them.
+  void onWallpapersChanged();
   bool onPointerEvent(const PointerEvent& event);
   bool onKeyboardEvent(const KeyboardEvent& event);
 
@@ -46,6 +54,7 @@ private:
     wl_output* output = nullptr;
     std::unique_ptr<LayerSurface> surface;
     AnimationManager animations;
+    InputDispatcher input;
     std::unique_ptr<Node> root;
     Box* pill = nullptr;
     Label* clock = nullptr;
@@ -63,6 +72,8 @@ private:
 
   void createInstances();
   void buildScene(Instance& inst);
+  std::unique_ptr<Node> buildPage(Instance& inst, const std::string& mode);
+  void rebuildPage(Instance& inst, const std::string& mode);
   void applyGeometry(Instance& inst);
   void setMode(Instance& inst, const std::string& mode);
   void scheduleClose(Instance& inst);
@@ -71,6 +82,8 @@ private:
   WaylandConnection* m_wayland = nullptr;
   RenderContext* m_renderContext = nullptr;
   ConfigService* m_config = nullptr;
+  AsyncTextureCache* m_textures = nullptr;
+  WallpaperService* m_wallpapers = nullptr;
   std::vector<std::unique_ptr<Instance>> m_instances;
   std::string m_time;
   Timer m_clockTimer;

@@ -5,6 +5,9 @@
 #include "config/config.h"
 #include "ipc/ipc.h"
 #include "island/island.h"
+#include "services/wallpaper_service.h"
+#include "wallpaper/background.h"
+#include "render/core/async_texture_cache.h"
 #include "render/gl_shared_context.h"
 #include "render/render_context.h"
 #include "wayland/wayland_connection.h"
@@ -26,8 +29,11 @@ private:
   GlSharedContext m_glShared;
   RenderContext m_renderContext;
   ConfigService m_config;
+  WallpaperService m_wallpapers{m_config};
+  AsyncTextureCache m_textures;
   TimerPollSource m_timers;
   DeferredCallPollSource m_deferred;
   IpcServer m_ipc;
+  Backgrounds m_backgrounds;
   Islands m_islands;
 };

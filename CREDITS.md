@@ -8,4 +8,11 @@ Dynamic-Larpland's native (C++) version is built on code from
 - `src/wayland/layer_shell.*`, `src/wayland/layer_surface.*` — adapted from Noctalia's `src/shell/wayland/`
   (blur support removed).
 - `src/app/main_loop.*`, `src/app/*_poll_source.h` — adapted from Noctalia's `src/app/`.
+- `src/theme/` — Noctalia's theme engine (palette generation, Material You and custom schemes, template
+  processor, hooks), ported with the Firefox integration and Noctalia's icon resolver removed;
+  `theme_cli.cpp` is new.
+- `src/system/process.*`, `src/config/atomic_file.*`, `src/config/toml.h` — from Noctalia.
+- `assets/templates/` — Noctalia's built-in app template catalog, output files renamed from `noctalia.*` to
+  `dynamic-larpland.*`.
+- `third_party/material_color_utilities/` — Google's Material Color Utilities (Apache-2.0), as vendored by Noctalia.
 - `protocols/wlr-layer-shell-unstable-v1.xml` — wlr-protocols.

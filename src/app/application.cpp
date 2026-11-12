@@ -2,9 +2,11 @@
 
 #include "app/main_loop.h"
 #include "core/log.h"
+#include "render/backend/render_backend.h"
 #include "wayland/layer_shell.h"
 #include "wayland/wayland_seat.h"
 
+#include <filesystem>
 #include <stdexcept>
 
 namespace {
@@ -25,10 +27,26 @@ Application::Application() {
 
   m_glShared.initialize(m_wayland.display());
   m_renderContext.initialize(m_glShared);
+  m_textures.initialize(m_glShared.hasSharedContext() ? &m_glShared : nullptr);
+  if (!m_glShared.hasSharedContext()) {
+    m_textures.setMakeCurrentCallback([this] { m_renderContext.backend().makeCurrentNoSurface(); });
+  }
 
-  m_islands.initialize(m_wayland, m_renderContext, m_config);
-  m_config.setChangeCallback([this] { m_islands.onConfigChanged(); });
-  m_wayland.setOutputChangeCallback([this] { m_islands.onOutputsChanged(); });
+  // Created before the islands so the wallpaper sits below them in the same compositor pass.
+  m_backgrounds.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers);
+  m_islands.initialize(m_wayland, m_renderContext, m_config, m_textures, m_wallpapers);
+  m_wallpapers.setChangeCallback([this] {
+    m_backgrounds.refresh();
+    m_islands.onWallpapersChanged();
+  });
+  m_config.setChangeCallback([this] {
+    m_islands.onConfigChanged();
+    m_wallpapers.onConfigChanged();
+  });
+  m_wayland.setOutputChangeCallback([this] {
+    m_backgrounds.onOutputsChanged();
+    m_islands.onOutputsChanged();
+  });
   m_wayland.setPointerEventCallback([this](const PointerEvent& event) { m_islands.onPointerEvent(event); });
   m_wayland.setKeyboardEventCallback([this](const KeyboardEvent& event) { m_islands.onKeyboardEvent(event); });
 
@@ -46,6 +64,12 @@ std::string Application::handleAction(const std::string& action) {
     m_islands.setMode("collapsed");
   } else if (action == "player" || action == "calendar" || action == "wallpapers" || action == "power") {
     m_islands.toggleMode(action);
+  } else if (action.starts_with("wallpaper ")) {
+    const std::string path = action.substr(10);
+    if (!std::filesystem::is_regular_file(path)) {
+      return "no such file: " + path;
+    }
+    m_wallpapers.set(path);
   } else if (action == "quit") {
     MainLoop::requestQuit();
   } else {
@@ -55,7 +79,7 @@ std::string Application::handleAction(const std::string& action) {
 }
 
 void Application::run() {
-  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config}; });
+  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config, &m_textures}; });
   kLog.info("running");
   loop.run();
 }
