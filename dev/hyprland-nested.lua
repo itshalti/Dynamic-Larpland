@@ -36,7 +36,6 @@ hl.config({
 
 hl.on("hyprland.start", function()
     cap240()
-    hl.exec_cmd("qs -p " .. repo .. "/dev/wallpaper")
     -- The island keeps its config/state under .dev so the real ~/.config is never touched.
     hl.exec_cmd("env XDG_CONFIG_HOME=" .. dev .. "/config XDG_STATE_HOME=" .. dev .. "/state "
         .. repo .. "/build/dynamic-larpland > " .. dev .. "/island.log 2>&1")

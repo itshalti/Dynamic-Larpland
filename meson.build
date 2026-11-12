@@ -141,15 +141,22 @@ sources = files(
   'src/wayland/session_lock.cpp',
 )
 
+installed_assets = get_option('datadir') / 'dynamic-larpland' / 'assets'
+# App templates and noctalia-ui's glyph font share one asset directory once installed.
+install_subdir('assets/templates', install_dir: installed_assets)
+install_subdir('lib/assets/fonts', install_dir: installed_assets)
+install_data('CREDITS.md', 'lib/LICENSE.noctalia', install_dir: get_option('datadir') / 'licenses' / 'dynamic-larpland')
+
 executable('dynamic-larpland',
   sources + protocol_sources + protocol_headers,
   dependencies: [noctalia_ui_dep, noctalia_ui_codecs_dep, dependency('tomlplusplus'), dependency('sdbus-c++'), dependency('libcurl'), dependency('pam'), mcu_dep, fzy_dep],
   include_directories: include_directories('src'),
-  # shortcut: assets are read from the source tree, fine for development; install them for packaging (milestone 7).
+  # Assets come from the source tree when it is there (development), else from the installed copy.
   cpp_args: [
     '-DDL_VERSION="' + meson.project_version() + '"',
     '-DDL_APP_ASSETS_DIR="' + (meson.current_source_dir() / 'assets') + '"',
     '-DDL_LIB_ASSETS_DIR="' + (meson.current_source_dir() / 'lib' / 'assets') + '"',
+    '-DDL_INSTALLED_ASSETS_DIR="' + (get_option('prefix') / installed_assets) + '"',
   ],
   install: true,
 )

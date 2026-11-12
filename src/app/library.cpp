@@ -5,6 +5,7 @@
 #include "core/ui_strings.h"
 #include "render/codecs/codecs.h"
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 
@@ -40,7 +41,12 @@ namespace {
 
 void configureLibrary() {
   setApplicationIdentity({.name = "dynamic-larpland", .envPrefix = "DYNAMIC_LARPLAND"});
-  paths::setAssetRoots({.application = DL_APP_ASSETS_DIR, .library = DL_LIB_ASSETS_DIR});
+  // Run from the repo: use its assets; installed: the copy in <datadir>/dynamic-larpland/assets.
+  if (std::filesystem::exists(std::string(DL_APP_ASSETS_DIR) + "/templates/builtin.toml")) {
+    paths::setAssetRoots({.application = DL_APP_ASSETS_DIR, .library = DL_LIB_ASSETS_DIR});
+  } else {
+    paths::setAssetRoots({.application = DL_INSTALLED_ASSETS_DIR, .library = DL_INSTALLED_ASSETS_DIR});
+  }
   setUiStrings({
       .keyName = keyNameLabel,
       .selectPlaceholder = [] { return std::string("Select"); },

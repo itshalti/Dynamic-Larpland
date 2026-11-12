@@ -258,8 +258,11 @@ void Islands::runAction(Instance& inst, const std::string& action) {
 }
 
 void Islands::onWallpapersChanged() {
+  // The palette (accent) may have changed too, and every page uses it.
   for (auto& inst : m_instances) {
-    rebuildPage(*inst, "wallpapers");
+    for (const char* mode : kPageModes) {
+      rebuildPage(*inst, mode);
+    }
   }
 }
 

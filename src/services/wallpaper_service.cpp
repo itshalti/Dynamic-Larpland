@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -46,7 +47,15 @@ std::string WallpaperService::palettePath() { return FileUtils::stateDir() + "/p
 
 const std::string& WallpaperService::current() const { return m_config.config().wallpaper.current; }
 
-std::string WallpaperService::dirDisplay() const { return m_config.config().wallpaper.dir; }
+std::string WallpaperService::dirDisplay() const {
+  // Show "~/..." instead of the full home path.
+  const std::string dir = ConfigService::expandHome(m_config.config().wallpaper.dir);
+  const char* home = std::getenv("HOME");
+  if (home != nullptr && dir.starts_with(std::string(home) + "/")) {
+    return "~" + dir.substr(std::string(home).size());
+  }
+  return dir;
+}
 
 void WallpaperService::rescan() {
   m_scannedDir = m_config.config().wallpaper.dir;
