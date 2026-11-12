@@ -19,7 +19,6 @@ ClippingRectangle {
         NumberAnimation {
             duration: Theme.animMorph
             easing.type: Theme.easingMorph
-            easing.overshoot: Theme.easingMorphOvershoot
         }
     }
 
@@ -27,7 +26,6 @@ ClippingRectangle {
         NumberAnimation {
             duration: Theme.animMorph
             easing.type: Theme.easingMorph
-            easing.overshoot: Theme.easingMorphOvershoot
         }
     }
 

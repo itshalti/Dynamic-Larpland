@@ -7,6 +7,17 @@ local mod = "ALT"
 
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 
+-- The nested (wayland-backend) output only offers 60 Hz and its size follows the host window,
+-- so re-apply the current size at 240 Hz whenever the layout changes.
+local function cap240()
+    local m = hl.get_active_monitor()
+    if m and m.refresh_rate < 239 then
+        hl.monitor({ output = m.name, mode = m.width .. "x" .. m.height .. "@240", position = "auto", scale = 1 })
+    end
+end
+hl.on("monitor.added", cap240)
+hl.on("monitor.layout_changed", cap240)
+
 hl.config({
     input = {
         kb_layout = "us,ru",
@@ -24,9 +35,8 @@ hl.config({
 })
 
 hl.on("hyprland.start", function()
+    cap240()
     hl.exec_cmd("qs -p " .. repo .. "/dev/wallpaper")
-    -- Host players aren't visible on this session's own D-Bus, so start a demo one.
-    hl.exec_cmd("env XDG_STATE_HOME=" .. dev .. "/state python3 " .. repo .. "/dev/fake-player.py")
     -- The island keeps its config/state under .dev so the real ~/.config is never touched.
     hl.exec_cmd("env XDG_CONFIG_HOME=" .. dev .. "/config XDG_STATE_HOME=" .. dev .. "/state "
         .. repo .. "/scripts/run.sh")

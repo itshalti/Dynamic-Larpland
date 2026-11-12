@@ -85,7 +85,7 @@ PanelWindow {
         Behavior on scale {
             NumberAnimation {
                 duration: Theme.animMorph * 0.7
-                easing.type: Easing.OutBack
+                easing.type: Theme.easingMorph
             }
         }
 

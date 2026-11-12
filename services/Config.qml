@@ -15,9 +15,16 @@ Singleton {
     property alias calendar: adapter.calendar
     property alias notifications: adapter.notifications
     property alias keybinds: adapter.keybinds
+    property alias wallpaper: adapter.wallpaper
+    property alias recorder: adapter.recorder
 
     property bool dirsReady: false
     property bool fileMissing: false
+
+    // "~/x" -> "$HOME/x" for paths the user types in settings.
+    function expandHome(path: string): string {
+        return path.startsWith("~") ? Quickshell.env("HOME") + path.slice(1) : path;
+    }
 
     // Emitted after the config file was (re)loaded from disk.
     signal loaded
@@ -69,6 +76,17 @@ Singleton {
             property JsonObject notifications: JsonObject {
                 property int historyLimit: 100
                 property int popupTimeoutMs: 4000
+            }
+
+            property JsonObject wallpaper: JsonObject {
+                // Folder shown in the wallpaper picker ("~" = home).
+                property string dir: "~/Pictures"
+                // Absolute path of the current wallpaper; "" = the island draws none.
+                property string current: ""
+            }
+
+            property JsonObject recorder: JsonObject {
+                property string dir: "~/Videos"
             }
 
             // Hyprland key combos ("SUPER + Space"); empty = unbound.

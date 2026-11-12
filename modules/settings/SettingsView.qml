@@ -67,6 +67,47 @@ Item {
             }
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+            spacing: 12
+
+            StyledText {
+                text: "Wallpaper folder"
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                radius: Theme.radiusSmall
+                color: Theme.surfaceRaised
+                border.width: dirInput.activeFocus ? 1 : 0
+                border.color: Theme.accent
+
+                TextInput {
+                    id: dirInput
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    verticalAlignment: TextInput.AlignVCenter
+                    clip: true
+                    text: Config.wallpaper.dir
+                    color: Theme.textPrimary
+                    selectionColor: Theme.accent
+                    selectedTextColor: Theme.textOnAccent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontBody
+                    // Saved on Enter or when the field loses focus.
+                    onEditingFinished: if (text.trim())
+                        Config.wallpaper.dir = text.trim()
+                    Keys.onEscapePressed: {
+                        text = Config.wallpaper.dir;
+                        focus = false;
+                    }
+                }
+            }
+        }
+
         StyledText {
             Layout.fillWidth: true
             Layout.fillHeight: true

@@ -18,7 +18,13 @@ with layer-shell (Sway, niri, river…). Built with [Quickshell](https://quicksh
 - 🔔 **Notifications** — new ones pop out of the pill, then stay in a history with app icons.
 - 🧩 **System tray** — your tray icons live in the island's header.
 - 🚀 **App launcher** — `Super + Space`, fuzzy search, icons from your icon theme.
+- ⏺️ **Screen recording** — one button starts/stops recording the screen to `~/Videos` (needs `gpu-screen-recorder`).
+- 🖼️ **Wallpapers** — pick one from your `~/Pictures` (folder changeable in settings); the system colors (island,
+  GTK, kitty, Hyprland borders) follow it (needs `matugen`).
 - ⚙️ **Settings** — change keybinds right in the island (gear button).
+- ⏻ **Power** — shut down, reboot, reboot to UEFI, lock or sleep from the button next to the gear.
+- 🔒 **Lock screen** — your wallpaper with a big clock; start typing and the password field appears (`*` per
+  character). Lock from the power page or `qs -p ~/Dynamic-Larpland ipc call island lock`.
 
 <p align="center">
   <img src="docs/media/launcher.gif" alt="The app launcher opening and closing" width="640">
@@ -26,7 +32,8 @@ with layer-shell (Sway, niri, river…). Built with [Quickshell](https://quicksh
 
 ## Install
 
-1. Install [Quickshell](https://quickshell.org) 0.2 or newer (Arch: `pacman -S quickshell`).
+1. Install [Quickshell](https://quickshell.org) 0.2 or newer (Arch: `pacman -S quickshell`). Optional:
+   `gpu-screen-recorder` (recording) and `matugen` (wallpaper colors).
 2. Get the code:
    ```bash
    git clone https://github.com/itshalti/Dynamic-Larpland.git ~/Dynamic-Larpland

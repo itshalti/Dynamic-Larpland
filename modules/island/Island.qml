@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 // The island window for one screen: a transparent layer-shell surface at the top center
 // holding the animated pill. Owns the mode state machine:
-//   collapsed | expanded | player | calendar | settings
+//   collapsed | expanded | player | calendar | settings | wallpapers | power
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -10,6 +10,8 @@ import qs.services
 import qs.modules.media
 import qs.modules.calendar
 import qs.modules.settings
+import qs.modules.wallpaper
+import qs.modules.power
 
 PanelWindow {
     id: root
@@ -36,6 +38,10 @@ PanelWindow {
             return Theme.calendarSize;
         case "settings":
             return Theme.settingsSize;
+        case "wallpapers":
+            return Theme.wallpapersSize;
+        case "power":
+            return Theme.powerSize;
         }
         if (popup)
             return Theme.collapsedNotifSize;
@@ -44,9 +50,20 @@ PanelWindow {
         return Theme.collapsedSize;
     }
 
+    // When the mode last changed: switching pages resizes the pill, which can leave the pointer
+    // outside it, so a leave right after a switch waits longer before collapsing.
+    property double modeChangedAt: 0
+
+    function scheduleClose(): void {
+        const justSwitched = Date.now() - modeChangedAt < Theme.modeSwitchGrace;
+        closeTimer.interval = justSwitched ? Theme.modeSwitchCloseDelay : Theme.hoverCloseDelay;
+        closeTimer.restart();
+    }
+
     function setMode(next: string): void {
         openTimer.stop();
         closeTimer.stop();
+        modeChangedAt = Date.now();
         if (next !== "collapsed")
             popup = null;
         mode = next;
@@ -83,7 +100,7 @@ PanelWindow {
 
     onHoldOpenChanged: {
         if (!holdOpen && expanded && !hover.hovered)
-            closeTimer.restart();
+            root.scheduleClose();
     }
 
     Connections {
@@ -129,7 +146,6 @@ PanelWindow {
 
     Timer {
         id: closeTimer
-        interval: Theme.hoverCloseDelay
         onTriggered: {
             if (!root.holdOpen)
                 root.collapse();
@@ -162,7 +178,7 @@ PanelWindow {
                 } else {
                     openTimer.stop();
                     if (root.expanded && !root.holdOpen)
-                        closeTimer.restart();
+                        root.scheduleClose();
                 }
             }
         }
@@ -192,6 +208,8 @@ PanelWindow {
                 onOpenPlayer: root.setMode("player")
                 onOpenCalendar: root.setMode("calendar")
                 onOpenSettings: root.setMode("settings")
+                onOpenWallpapers: root.setMode("wallpapers")
+                onOpenPower: root.setMode("power")
             }
         }
 
@@ -220,6 +238,26 @@ PanelWindow {
 
             SettingsView {
                 id: settingsView
+                anchors.fill: parent
+                onBack: root.setMode("expanded")
+            }
+        }
+
+        ModeView {
+            active: root.mode === "wallpapers"
+            pageSize: Theme.wallpapersSize
+
+            WallpaperView {
+                anchors.fill: parent
+                onBack: root.setMode("expanded")
+            }
+        }
+
+        ModeView {
+            active: root.mode === "power"
+            pageSize: Theme.powerSize
+
+            PowerView {
                 anchors.fill: parent
                 onBack: root.setMode("expanded")
             }

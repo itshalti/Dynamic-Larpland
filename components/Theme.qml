@@ -2,6 +2,7 @@ pragma Singleton
 // Design tokens. Modules must take every color, size, radius and timing from here.
 import Quickshell
 import QtQuick
+import qs.services
 
 Singleton {
     // Colors
@@ -12,8 +13,10 @@ Singleton {
     readonly property color textPrimary: "#ffffff"
     readonly property color textSecondary: "#8e8e93"
     readonly property color textTertiary: "#4a4a4e"
-    readonly property color accent: "#3fd0b0"
-    readonly property color textOnAccent: "#000000"
+    // Follow the wallpaper colors once matugen has run (services/Wallpaper).
+    readonly property color accent: Wallpaper.accent || "#3fd0b0"
+    readonly property color textOnAccent: Wallpaper.textOnAccent || "#000000"
+    readonly property color recording: "#ff453a"
     readonly property color weekend: "#c46a5f"
     readonly property color track: "#3a3a3c"
 
@@ -37,13 +40,21 @@ Singleton {
     readonly property size expandedSize: Qt.size(1040, 232)
     readonly property size playerSize: Qt.size(470, 196)
     readonly property size calendarSize: Qt.size(440, 414)
-    readonly property size settingsSize: Qt.size(560, 380)
+    readonly property size settingsSize: Qt.size(560, 430)
+    readonly property size wallpapersSize: Qt.size(1040, 232)
+    readonly property size powerSize: Qt.size(560, 184)
     readonly property real expandedRadius: 36
     readonly property int topMargin: 6
 
     // The layer-shell window is fixed and must fit the largest mode; input is masked to the pill.
     readonly property int windowWidth: 1080
     readonly property int windowHeight: 420
+
+    // Lock screen
+    readonly property color lockDim: "#59000000"
+    readonly property int lockClockSize: 128
+    readonly property size lockFieldSize: Qt.size(340, 54)
+    readonly property int lockFieldMargin: 90
 
     // Launcher
     readonly property int launcherWidth: 680
@@ -52,11 +63,17 @@ Singleton {
 
     // Interaction timing
     readonly property int hoverCloseDelay: 300
+    // Leaving the pill within modeSwitchGrace ms of a page switch collapses only after modeSwitchCloseDelay.
+    readonly property int modeSwitchGrace: 1200
+    readonly property int modeSwitchCloseDelay: 1500
+    // How long an armed power button waits for the confirming second click.
+    readonly property int confirmTimeout: 3000
 
     // Animation
     readonly property int animMorph: 420
-    readonly property int easingMorph: Easing.OutBack
-    readonly property real easingMorphOvershoot: 1.05
+    // No overshoot: a fast start that settles softly.
+    readonly property int easingMorph: Easing.OutQuint
     readonly property int animFade: 160
     readonly property int animFast: 110
+    readonly property int animWallpaper: 600
 }

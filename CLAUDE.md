@@ -13,7 +13,8 @@ panel with media controls, a calendar, notification history, the system tray, se
   `Quickshell.Services.Notifications` (notification server), `Quickshell.Services.SystemTray` (StatusNotifierItem),
   `Quickshell.Hyprland` (IPC, `GlobalShortcut`), `Quickshell.Io` (`Process`, `FileView`, `JsonAdapter`, `IpcHandler`),
   `DesktopEntries` (launcher).
-- Optional runtime tools: `cava` (visualizer bars; must fall back to a fake animation without it).
+- Optional runtime tools: `cava` (visualizer bars; must fall back to a fake animation without it),
+  `gpu-screen-recorder` (record button), `matugen` (wallpaper colors). Without them only that feature fails.
 
 ## Compositor support
 
@@ -28,10 +29,10 @@ panel with media controls, a calendar, notification history, the system tray, se
 1. **Collapsed island** — black pill, top center, shows only the time `HH:mm`. May briefly show compact "live
    activities": playing track (tiny cover + equalizer bars), a new notification (app icon + title).
 2. **Expand animation** — hover (short delay) or click expands; leaving the pointer / clicking outside / `Esc`
-   collapses. Width, height and corner radius animate together (spring/OutBack-style easing); content cross-fades.
+   collapses. Width, height and corner radius animate together (`Theme.easingMorph`, OutQuint — no bounce); content cross-fades.
    Must feel smooth — never jump sizes without a `Behavior`.
 3. **Expanded view (NotchNook-like)** — header: **Nook** label, the **system tray** icons right next to it
-   (StatusNotifierItem, with their menus; no separate Tray tab), and a small **gear** button top-right.
+   (StatusNotifierItem, with their menus; no separate Tray tab), and top-right: **record**, **wallpapers**, **gear**, **power**.
    - Body: media card (cover, title, album, artist, prev / play-pause / next, player app badge) │ week-strip
      calendar (month name, days around today, today highlighted, "Nothing for today") │ notification/message history
      with app icons.
@@ -49,6 +50,19 @@ panel with media controls, a calendar, notification history, the system tray, se
 8. **Settings** (gear) — keybind editor (launcher, toggle island, open player, open calendar) + basic options.
    Stored in `~/.config/dynamic-larpland/config.json` (created on first run); the defaults live in the
    `JsonAdapter` inside `services/Config.qml`.
+9. **Screen recording** — the record button toggles `gpu-screen-recorder` on the focused monitor (desktop audio,
+   60 fps) into `Config.recorder.dir` (`~/Videos`); the button turns red with a stop icon while recording.
+10. **Wallpapers** — the image button opens a strip of previews from `Config.wallpaper.dir` (`~/Pictures`, editable
+   in settings). Picking one: the island draws it (own `Background` layer window per screen, cross-fade) and runs
+   `matugen` with `assets/matugen/*` templates → island accent (`colors.json` in the state dir), GTK 3/4
+   (`gtk-*/dynamic-larpland.css`), kitty (`kitty/themes/dynamic-larpland.conf`), Hyprland borders (`colors.lua`,
+   loaded from `binds.lua`); then `scripts/apply-colors.sh` adds the include lines once and reloads.
+11. **Power** — the power button opens a page: shut down, reboot, reboot to UEFI (`systemctl`; these three need a
+   second click within `Theme.confirmTimeout`), lock (the island's own lock screen), sleep (`systemctl suspend`).
+12. **Lock screen** — `WlSessionLock` (`modules/lock`) with a surface per screen: current wallpaper (dimmed), big clock
+   + date in the center; typing reveals a pill field at the bottom showing one `*` per character; Enter checks the
+   password through PAM (`services/Lock`, config `passwd`), a wrong one shakes the field. Don't hot-reload while
+   locked in dev (the old surface stays up); restart the nested session instead.
 
 ### Visual style
 Pure black (`#000`) surfaces, large radii, white primary text, grey secondary text, teal accent (`#3fd0b0`),
@@ -58,12 +72,14 @@ no hardcoded values in modules.
 ## Architecture
 
 ```
-shell.qml                  entry: ShellRoot, one Island per screen (Variants over Quickshell.screens) + Launcher
+shell.qml                  entry: ShellRoot, one Background + one Island per screen (Variants) + Launcher
 components/                Theme (design tokens singleton), Icon, IconButton, AppIcon, StyledText
 services/                  singletons (pragma Singleton), NO UI:
                              Config (config.json via JsonAdapter), Time, Ipc (IpcHandler + GlobalShortcuts),
                              Compositor (Hyprland detection, focused screen, binds.lua), Media (MPRIS),
-                             Notifications (daemon + history), Apps (desktop entries + fuzzy search)
+                             Notifications (daemon + history), Apps (desktop entries + fuzzy search),
+                             Recorder (gpu-screen-recorder), Wallpaper (folder, current, matugen colors),
+                             Power (systemctl actions), Lock (session lock state + PAM)
 modules/island/            Island (PanelWindow + mode state machine), IslandShape, ModeView, CollapsedView,
                            ExpandedView, TabButton
 modules/media/             MediaCard, PlayerView, Cover, Visualizer
@@ -72,26 +88,33 @@ modules/notifications/     NotificationList, NotificationItem
 modules/tray/              TrayView
 modules/launcher/          Launcher (own full-screen layer-shell window, exclusive keyboard), LauncherItem
 modules/settings/          SettingsView, KeybindEditor, Toggle
+modules/power/             PowerView, PowerButton
+modules/lock/              LockScreen (WlSessionLock), LockSurface
+modules/wallpaper/         Background (wallpaper window), WallpaperView (picker), WallpaperItem
+assets/matugen/            matugen templates (island.json, gtk.css, kitty.conf, hyprland.lua)
 assets/icons/              bundled white SVG icons (own drawings), loaded with components/Icon
+scripts/apply-colors.sh    after matugen: add GTK/kitty include lines once, reload kitty + Hyprland
 scripts/install.sh         symlinks the repo into ~/.config/quickshell/dynamic-larpland
 ```
 
 Runtime files: `~/.config/dynamic-larpland/config.json`, `~/.config/dynamic-larpland/binds.lua` (generated),
-`~/.local/state/dynamic-larpland/notifications.json` (history).
+`~/.local/state/dynamic-larpland/notifications.json` (history), `matugen.toml` + `colors.lua` (config dir) and
+`colors.json` (state dir) generated on wallpaper pick.
 
 ### Rules
 - **services/** hold state and talk to the system; **modules/** only render and forward user intent. A module never
   runs `Process` or reads files directly.
 - Import project dirs as Quickshell modules: `import qs.components`, `import qs.services`, `import qs.modules.island`.
-- Island state machine (`Island.qml`, property `mode`): `collapsed | expanded | player | calendar | settings`.
+- Island state machine (`Island.qml`, property `mode`): `collapsed | expanded | player | calendar | settings | wallpapers | power`.
   Each mode defines its target size in `Theme`; `IslandShape` animates to it. Each page is wrapped in a `ModeView`
   that lays it out at its final size (no reflow during the morph) and cross-fades it on `mode`.
-- Hover expands after `hoverDelayMs`, leaving collapses after `Theme.hoverCloseDelay` unless `holdOpen` (settings
+- Hover expands after `hoverDelayMs`, leaving collapses after `Theme.hoverCloseDelay` (`modeSwitchCloseDelay` if the pointer
+  left within `modeSwitchGrace` of a page switch — the pill resizes under it) unless `holdOpen` (settings
   page, open tray menu). Keybind/IPC actions only affect the island on the focused screen (`Island.isTarget`).
 - The island window is a fixed-size transparent `PanelWindow` (layer `Overlay`, `ExclusionMode.Ignore`); input is
   limited to the pill with `mask: Region { item: shape }`, so the transparent area never steals clicks.
 - Every action is reachable through IPC (`services/Ipc.qml`, target `island`): `toggle`, `expand`, `collapse`,
-  `launcher`, `player`, `calendar`, `settings`.
+  `launcher`, `player`, `calendar`, `settings`, `wallpapers`, `record`, `power`, `lock`.
 - Keybinds on Hyprland (0.55+ Lua config): actions are registered as global shortcuts `dynamic-larpland:<action>`;
   `Compositor.writeBinds()` generates `binds.lua` (`hl.bind(keys, hl.dsp.global(...))`) from the config and runs
   `hyprctl reload config-only`. The user's Hyprland config must contain
@@ -132,9 +155,9 @@ Develop inside a nested Hyprland window instead:
   the host client with class `aquamarine` (use its `at`/`size` for `grim -g` screenshots). For a test notification
   on the nested bus: `DBUS_SESSION_BUS_ADDRESS=$(tr '\0' '\n' </proc/<qs pid>/environ | sed -n
   's/^DBUS_SESSION_BUS_ADDRESS=//p') notify-send …`.
-- The session also starts `dev/wallpaper` (gradient background, separate Quickshell config) and
-  `dev/fake-player.py` ("Demo Player": made-up tracks with generated covers on the session bus; control it with
-  `dbus-send … org.mpris.MediaPlayer2.Player.Next` etc.).
+- The session also starts `dev/wallpaper` (gradient background, separate Quickshell config).
+  `dev/fake-player.py` ("Demo Player": made-up tracks with generated covers) is not autostarted; run it on the
+  nested bus by hand when a player is needed (e.g. for recordings).
 - README media (keep it to `docs/media/tour.gif` — one tour of the island — and `launcher.gif`) are recorded in the
   nested session: `dev/record.py OUT.gif X Y W H SECONDS
   [--cursor] [--width 840]` (grim frames → ffmpeg GIF); stills with `grim -g`. Drive the island with IPC while

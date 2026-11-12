@@ -47,6 +47,22 @@ Singleton {
         function launcher(): void {
             root.launcherRequested();
         }
+
+        function lock(): void {
+            Lock.lock();
+        }
+
+        function power(): void {
+            root.modeRequested("power");
+        }
+
+        function wallpapers(): void {
+            root.modeRequested("wallpapers");
+        }
+
+        function record(): void {
+            Recorder.toggle();
+        }
     }
 
     LazyLoader {

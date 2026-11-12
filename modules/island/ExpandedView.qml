@@ -1,9 +1,11 @@
 pragma ComponentBehavior: Bound
-// Expanded island (NotchNook-like). Header: Nook label, system tray icons, settings gear.
+// Expanded island (NotchNook-like). Header: Nook label, system tray icons, then screen record,
+// wallpapers, the settings gear and power.
 // Body: media card | week strip | notifications.
 import QtQuick
 import QtQuick.Layouts
 import qs.components
+import qs.services
 import qs.modules.media
 import qs.modules.calendar
 import qs.modules.notifications
@@ -17,6 +19,8 @@ Item {
     signal openPlayer
     signal openCalendar
     signal openSettings
+    signal openWallpapers
+    signal openPower
 
     RowLayout {
         id: header
@@ -43,9 +47,28 @@ Item {
         }
 
         IconButton {
+            icon: Recorder.recording ? "stop" : "record"
+            iconSize: 18
+            baseColor: Recorder.recording ? Theme.recording : "transparent"
+            onClicked: Recorder.toggle()
+        }
+
+        IconButton {
+            icon: "image"
+            iconSize: 18
+            onClicked: root.openWallpapers()
+        }
+
+        IconButton {
             icon: "gear"
             iconSize: 18
             onClicked: root.openSettings()
+        }
+
+        IconButton {
+            icon: "power"
+            iconSize: 18
+            onClicked: root.openPower()
         }
     }
 
