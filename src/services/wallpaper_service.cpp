@@ -88,6 +88,13 @@ void WallpaperService::set(const std::string& path) {
   std::vector<std::string> args = {
       std::filesystem::read_symlink("/proc/self/exe", ec).string(), "theme", path, "--scheme", cfg.theme.scheme, "--mode", cfg.theme.mode, "-o", palettePath(),
   };
+  if (cfg.theme.communityTemplates && !cfg.theme.community.empty()) {
+    std::string ids;
+    for (const auto& id : cfg.theme.community) {
+      ids += (ids.empty() ? "" : ",") + id;
+    }
+    args.insert(args.end(), {"--community", ids});
+  }
   if (cfg.theme.builtinTemplates && !cfg.theme.templates.empty()) {
     std::string ids;
     for (const auto& id : cfg.theme.templates) {

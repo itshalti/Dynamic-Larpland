@@ -11,6 +11,8 @@
 
 class AsyncTextureCache;
 class Box;
+class FingerprintAuthenticator;
+class SystemBus;
 class ConfigService;
 class Label;
 class RenderContext;
@@ -26,11 +28,13 @@ struct ext_session_lock_v1;
 class LockScreen {
 public:
   void initialize(WaylandConnection& wayland, RenderContext& renderContext, AsyncTextureCache& textures,
-                  WallpaperService& wallpapers, ConfigService& config);
+                  WallpaperService& wallpapers, ConfigService& config, SystemBus* systemBus);
+  LockScreen();
   ~LockScreen();
 
   bool active() const noexcept { return m_lock != nullptr; }
-  void lock();
+  // focusedConnector: output that shows the clock and the field when lockscreen.monitors = "focused".
+  void lock(const std::string& focusedConnector = {});
 
   bool onPointerEvent(const PointerEvent& event);
   bool onKeyboardEvent(const KeyboardEvent& event);
@@ -42,6 +46,8 @@ public:
 private:
   struct Instance {
     std::unique_ptr<LockSurface> surface;
+    // false: a plain black screen (lockscreen.monitors = "focused" on the other outputs).
+    bool content = true;
     AnimationManager animations;
     std::unique_ptr<Node> root;
     Label* clock = nullptr;
@@ -50,6 +56,7 @@ private:
     Box* field = nullptr;
     Label* stars = nullptr;
     Label* error = nullptr;
+    Label* hint = nullptr;
   };
 
   void buildScene(Instance& inst);
@@ -59,12 +66,17 @@ private:
   void unlock();
   void destroy();
   void clearPassword();
+  std::string wallpaperPath() const;
 
   WaylandConnection* m_wayland = nullptr;
   RenderContext* m_renderContext = nullptr;
   AsyncTextureCache* m_textures = nullptr;
   WallpaperService* m_wallpapers = nullptr;
   ConfigService* m_config = nullptr;
+  SystemBus* m_systemBus = nullptr;
+  std::unique_ptr<FingerprintAuthenticator> m_fingerprint;
+  // Fingerprint status shown under the date ("Touch the fingerprint sensor").
+  std::string m_hint;
 
   ext_session_lock_v1* m_lock = nullptr;
   std::vector<std::unique_ptr<Instance>> m_instances;

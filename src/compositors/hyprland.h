@@ -12,6 +12,10 @@ public:
   ~HyprlandService() override;
 
   static bool available();
+  // One request on Hyprland's command socket ("j/monitors", "dispatch ..."); "" when it fails.
+  static std::string request(const std::string& command);
+  // Turns every monitor on or off (idle screen-off). Works with the Lua and the classic config.
+  static bool setDpms(bool on);
   // Connector name of the focused monitor ("DP-1"), or "" when unknown.
   const std::string& focusedMonitor() const noexcept { return m_focused; }
 

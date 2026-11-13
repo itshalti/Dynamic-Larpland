@@ -26,8 +26,10 @@ Nothing else needs to be running: no Quickshell, no Noctalia, no matugen.
   from it, and your apps (GTK, Qt, kitty, Hyprland borders, btop, cava and 14 more) are recolored to match.
 - ⏺️ **Screen recording.** One button records the screen to `~/Videos` (needs `gpu-screen-recorder`).
 - ⏻ **Power and lock.** Shut down, reboot, reboot to UEFI, sleep, and a lock screen with your wallpaper and a big clock.
-- ⚙️ **Settings.** A settings window in the island's style: theme, the list of apps to recolor, keybinds,
-  notifications, recorder.
+- ⚙️ **Settings.** A settings window in the island's style, like Noctalia's: search, Advanced/Overridden
+  filters, reset. Theme and day/night switching by your location, built-in and community app templates, keybinds,
+  notifications (Do not disturb, per-app mute/block), idle (lock, screens off, suspend), lock screen (own
+  wallpaper, fingerprint), recorder.
 
 <p align="center">
   <img src="docs/media/launcher.gif" alt="The app launcher" width="640">
@@ -81,7 +83,8 @@ anywhere:
 
 ```bash
 dynamic-larpland msg toggle      # also: expand, collapse, player, calendar, wallpapers, power,
-                                 #       launcher, settings, record, lock
+                                 #       launcher, settings, record, lock, dnd
+dynamic-larpland msg settings notifications   # open a settings section
 dynamic-larpland msg wallpaper ~/Pictures/forest.jpg
 ```
 

@@ -46,6 +46,8 @@ public:
   // Keyboard goes here while the window has keyboard focus.
   bool onKeyboardEvent(const KeyboardEvent& event);
   bool ownsSurface(const struct wl_surface* surface) const noexcept;
+  // Data shown on a page changed elsewhere (e.g. the community catalog finished downloading).
+  void refresh() { requestRefresh(); }
 
 private:
   void buildScene();

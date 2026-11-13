@@ -6,6 +6,8 @@
 #include "config/config.h"
 #include "dbus/session_bus.h"
 #include "dbus/session_bus_poll_source.h"
+#include "dbus/system_bus.h"
+#include "dbus/system_bus_poll_source.h"
 #include "dbus/tray_service.h"
 #include "system/icon_resolver.h"
 #include "net/http_client.h"
@@ -13,12 +15,14 @@
 #include "services/media_service.h"
 #include "services/notification_service.h"
 #include "services/recorder_service.h"
+#include "services/idle_service.h"
 #include "ipc/ipc.h"
 #include "island/island.h"
 #include "launcher/launcher.h"
 #include "lock/lock_screen.h"
 #include "settings/settings_window.h"
 #include "services/wallpaper_service.h"
+#include "theme/community_templates.h"
 #include "wallpaper/background.h"
 #include "render/core/async_texture_cache.h"
 #include "render/gl_shared_context.h"
@@ -46,10 +50,14 @@ private:
   WallpaperService m_wallpapers{m_config};
   SessionBus m_sessionBus;
   SessionBusPollSource m_sessionBusSource{m_sessionBus};
+  SystemBus m_systemBus;
+  SystemBusPollSource m_systemBusSource{m_systemBus};
   HttpClient m_http;
   HttpClientPollSource m_httpSource{m_http};
   MediaService m_media{m_sessionBus, m_http};
   NotificationService m_notifications{m_sessionBus, m_config};
+  noctalia::theme::CommunityTemplateService m_communityTemplates{m_http};
+  void syncCommunityTemplates();
   TrayService m_tray{m_sessionBus};
   IconResolver m_icons{true};
   RecorderService m_recorder{m_config};
@@ -64,4 +72,7 @@ private:
   LockScreen m_lockScreen;
   SettingsWindow m_settings;
   struct wl_surface* m_keyboardFocus = nullptr;
+  std::unique_ptr<IdleService> m_idle;
+  Timer m_dayNightTimer;
+  void syncDayNight();
 };

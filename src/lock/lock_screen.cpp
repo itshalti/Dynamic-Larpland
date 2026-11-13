@@ -1,6 +1,8 @@
 #include "lock/lock_screen.h"
 
+#include "auth/fingerprint_authenticator.h"
 #include "auth/pam_authenticator.h"
+#include "dbus/system_bus.h"
 #include "config/config.h"
 #include "core/deferred_call.h"
 #include "core/log.h"
@@ -73,7 +75,8 @@ namespace {
 } // namespace
 
 void LockScreen::initialize(WaylandConnection& wayland, RenderContext& renderContext, AsyncTextureCache& textures,
-                            WallpaperService& wallpapers, ConfigService& config) {
+                            WallpaperService& wallpapers, ConfigService& config, SystemBus* systemBus) {
+  m_systemBus = systemBus;
   m_wayland = &wayland;
   m_renderContext = &renderContext;
   m_textures = &textures;
@@ -81,9 +84,15 @@ void LockScreen::initialize(WaylandConnection& wayland, RenderContext& renderCon
   m_config = &config;
 }
 
+LockScreen::LockScreen() = default;
 LockScreen::~LockScreen() { clearPassword(); }
 
-void LockScreen::lock() {
+std::string LockScreen::wallpaperPath() const {
+  const std::string& own = m_config->config().lockscreen.wallpaper;
+  return own.empty() ? m_wallpapers->current() : ConfigService::expandHome(own);
+}
+
+void LockScreen::lock(const std::string& focusedConnector) {
   if (m_lock != nullptr) {
     return;
   }
@@ -96,13 +105,16 @@ void LockScreen::lock() {
   ext_session_lock_v1_add_listener(m_lock, &kLockListener, this);
   clearPassword();
   m_error.clear();
+  m_hint.clear();
   m_checking = false;
+  const auto& cfg = m_config->config().lockscreen;
 
   for (const auto& output : m_wayland->outputs()) {
     if (output.output == nullptr) {
       continue;
     }
     auto inst = std::make_unique<Instance>();
+    inst->content = cfg.monitors != "focused" || focusedConnector.empty() || output.connectorName == focusedConnector;
     inst->surface = std::make_unique<LockSurface>(*m_wayland);
     inst->surface->setRenderContext(m_renderContext);
     inst->surface->setAnimationManager(&inst->animations);
@@ -120,6 +132,15 @@ void LockScreen::lock() {
     }
   }
   m_clockTimer.startRepeating(std::chrono::seconds(1), [this] { refreshAll(); });
+  if (cfg.fingerprint && m_systemBus != nullptr) {
+    m_fingerprint = std::make_unique<FingerprintAuthenticator>(*m_systemBus);
+    m_fingerprint->setAuthenticatedCallback([this] { DeferredCall::callLater([this] { unlock(); }); });
+    m_fingerprint->setStatusCallback([this](const std::string& message, bool /*isError*/) {
+      m_hint = message;
+      refreshAll();
+    });
+    m_fingerprint->start();
+  }
   kLog.info("locking ({} outputs)", m_instances.size());
 }
 
@@ -134,6 +155,7 @@ void LockScreen::handleFinished(void* data, ext_session_lock_v1* /*lock*/) {
 
 void LockScreen::destroy() {
   m_clockTimer.stop();
+  m_fingerprint.reset();
   for (auto& inst : m_instances) {
     inst->animations.cancelAll();
   }
@@ -147,6 +169,7 @@ void LockScreen::destroy() {
 
 void LockScreen::unlock() {
   m_clockTimer.stop();
+  m_fingerprint.reset();
   for (auto& inst : m_instances) {
     inst->animations.cancelAll();
   }
@@ -177,12 +200,16 @@ void LockScreen::buildScene(Instance& inst) {
   bg->setSize(w, h);
   bg->setFill(theme::surface);
   inst.root->addChild(std::move(bg));
-  if (!m_wallpapers->current().empty()) {
+  if (!inst.content) {
+    inst.surface->setSceneRoot(inst.root.get());
+    return;
+  }
+  if (const std::string wallpaper = wallpaperPath(); !wallpaper.empty()) {
     auto image = std::make_unique<Image>();
     image->setSize(w, h);
     image->setFit(ImageFit::Cover);
     auto* img = static_cast<Image*>(inst.root->addChild(std::move(image)));
-    img->setSourceFileAsync(renderer, *m_textures, m_wallpapers->current());
+    img->setSourceFileAsync(renderer, *m_textures, wallpaper);
     Instance* raw = &inst;
     img->setAsyncReadyCallback([raw] { raw->surface->requestRedraw(); });
   }
@@ -195,6 +222,7 @@ void LockScreen::buildScene(Instance& inst) {
   inst.clock = widgets::label(*inst.root, renderer, "", theme::lockClockFontSize, theme::textPrimary, true);
   inst.date = widgets::label(*inst.root, renderer, "", theme::titleFontSize + 3.0F, theme::textPrimary);
   inst.date->setOpacity(0.85F);
+  inst.hint = widgets::label(*inst.root, renderer, "", theme::bodyFontSize, theme::textSecondary);
 
   auto group = std::make_unique<Node>();
   group->setSize(kFieldW, kFieldH + 34.0F);
@@ -218,7 +246,7 @@ void LockScreen::buildScene(Instance& inst) {
 }
 
 void LockScreen::refresh(Instance& inst) {
-  if (inst.root == nullptr) {
+  if (inst.root == nullptr || !inst.content) {
     return;
   }
   Renderer& renderer = inst.surface->renderTarget().renderer();
@@ -231,6 +259,9 @@ void LockScreen::refresh(Instance& inst) {
   inst.date->setText(formatNow("%A, %-d %B"));
   inst.date->measure(renderer);
   inst.date->setPosition((w - inst.date->width()) / 2.0F, inst.clock->y() + inst.clock->height() + 4.0F);
+  inst.hint->setText(m_hint);
+  inst.hint->measure(renderer);
+  inst.hint->setPosition((w - inst.hint->width()) / 2.0F, inst.date->y() + inst.date->height() + 18.0F);
 
   // The field shows up once the user starts typing (or while checking / after an error).
   const bool shown = !m_password.empty() || m_checking || !m_error.empty();

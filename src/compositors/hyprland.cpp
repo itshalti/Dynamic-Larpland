@@ -62,14 +62,12 @@ HyprlandService::~HyprlandService() {
   }
 }
 
-void HyprlandService::queryFocused() {
-  // One request on the command socket: "j/monitors" -> JSON array with a "focused" flag.
+std::string HyprlandService::request(const std::string& command) {
   const int fd = connectTo(socketPath(".socket.sock"), false);
   if (fd < 0) {
-    return;
+    return {};
   }
-  const char request[] = "j/monitors";
-  (void)::write(fd, request, sizeof(request) - 1);
+  (void)::write(fd, command.data(), command.size());
   std::string reply;
   char buf[4096];
   pollfd pfd{.fd = fd, .events = POLLIN, .revents = 0};
@@ -81,6 +79,21 @@ void HyprlandService::queryFocused() {
     reply.append(buf, static_cast<std::size_t>(n));
   }
   ::close(fd);
+  return reply;
+}
+
+bool HyprlandService::setDpms(bool on) {
+  // Lua configs (0.55+) take hl.dsp.* dispatchers; classic configs the old dispatcher syntax.
+  const std::string lua = std::string("dispatch hl.dsp.dpms({ action = \"") + (on ? "enable" : "disable") + "\" })";
+  if (request(lua).starts_with("ok")) {
+    return true;
+  }
+  return request(std::string("dispatch dpms ") + (on ? "on" : "off")).starts_with("ok");
+}
+
+void HyprlandService::queryFocused() {
+  // "j/monitors" -> JSON array with a "focused" flag.
+  const std::string reply = request("j/monitors");
   try {
     for (const auto& monitor : nlohmann::json::parse(reply)) {
       if (monitor.value("focused", false)) {

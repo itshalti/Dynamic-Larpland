@@ -43,8 +43,20 @@ panel with media controls, a calendar, notification history, the system tray, wa
 9. **Power** — shut down / reboot / UEFI need a second click; these are page-only (`system:*`), never IPC.
 10. **Lock screen** — ext-session-lock-v1, wallpaper + clock, masked field, PAM `login` via a re-exec'd `pam-helper`.
 11. **Recorder** — gpu-screen-recorder on the focused monitor into `recorder.dir`, SIGINT to stop.
-12. **Settings window** — centered layer surface (not a toplevel, so it's centered everywhere) with Look & theme,
-    Island & keybinds, Notifications & calendar, Recorder/lock/power. Saves to `config.toml` immediately.
+12. **Settings window** — centered layer surface (not a toplevel, so it's centered everywhere). Content is the
+    registry in `src/settings/settings_registry.cpp` (config path + control kind per row; `Kind::Custom` blocks drawn
+    by id in the window). Header: search across sections, Advanced / Overridden filters, Reset page; changed rows get
+    a reset button (`ConfigService::set/reset/overridden` by TOML path, tested in `tests/`). Saves immediately.
+    `msg settings <section>` opens a section.
+13. **Notifications extras** — Do not disturb (`notifications.dnd`, `msg dnd`; critical urgency still pops up) and
+    per-app rules (`notifications.rules`: mute = history only, block = dropped).
+14. **Idle** — ext-idle-notify-v1 behaviors (`idle.*`): lock, screens off (Hyprland dpms, back on at input),
+    lock + suspend; skipped while media plays.
+15. **Lock screen options** — own wallpaper, focused-monitor-only, DND while locked, fingerprint (fprintd).
+16. **Location / day-night** — `location.*` + `theme.auto_mode`: light from sunrise to sunset (ported
+    `day_night_schedule`), checked every minute.
+17. **Community templates** — Noctalia's online catalog (`CommunityTemplateService`, cache in the state dir),
+    selected ids in `theme.community`, applied with `theme --community`.
 
 ### Visual style
 Pure black surfaces, large radii, white primary / grey secondary text, accent from the wallpaper palette (teal
@@ -109,6 +121,7 @@ scripts/               install.sh (release build into ~/.local), dev.sh (nested 
 - The lock screen can't be unlocked from the tools: don't quit the island while nested is locked (Hyprland shows
   "lockscreen died"; clear it with `hyprctl -i 1 eval 'hl.clear_crashed_lockscreen()'`).
 - Don't test templates that touch the host (GTK's `gsettings`, Hyprland reload) outside `.dev`.
+- Never enable `idle.suspend_enabled` in nested tests: it suspends the real machine. Screen-off is safe (nested dpms).
 - README media (`docs/media/tour.gif`, `launcher.gif`) are recorded in nested with `dev/record.py`; only demo data.
 
 ## Commands
@@ -119,7 +132,8 @@ meson setup build && ninja -C build      # debug build
 build/dynamic-larpland msg toggle        # IPC (any action)
 build/dynamic-larpland theme IMG --dark  # palette JSON
 ```
-No test suite yet — verify in the nested session (IPC, screenshots, the log).
+`meson test -C build` runs the self-checks in `tests/`; everything else is verified in the nested session (IPC,
+screenshots, the log).
 
 ## Out of scope (for now)
 File shelf / AirDrop, webcam "Mirror", weather, X11, compositors without layer-shell (GNOME).

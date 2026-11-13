@@ -39,8 +39,9 @@ namespace settings {
     bool advanced = false;
     // Select
     std::vector<Option> options;
-    // Select values stored as integers in the config.
+    // Select values stored as integers in the config; Text values stored as numbers ("" removes the value).
     bool integerValue = false;
+    bool numberValue = false;
     // Slider: value range, step and how the value is shown ("{} ms"; divided by displayScale first).
     double min = 0.0;
     double max = 0.0;

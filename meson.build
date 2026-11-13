@@ -70,7 +70,8 @@ layer_shell_c = custom_target('wlr-layer-shell-client-source',
 protocol_sources = [layer_shell_c]
 protocol_headers = [layer_shell_h]
 wl_protocols_dir = dependency('wayland-protocols').get_variable('pkgdatadir')
-foreach p : [['ext-session-lock-v1', wl_protocols_dir / 'staging/ext-session-lock/ext-session-lock-v1.xml']]
+foreach p : [['ext-session-lock-v1', wl_protocols_dir / 'staging/ext-session-lock/ext-session-lock-v1.xml'],
+             ['ext-idle-notify-v1', wl_protocols_dir / 'staging/ext-idle-notify/ext-idle-notify-v1.xml']]
   h = custom_target(p[0] + '-client-header', input: p[1], output: p[0] + '-client-protocol.h',
     command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
   protocol_sources += custom_target(p[0] + '-client-source', input: p[1], output: p[0] + '-client-protocol.c',
@@ -88,6 +89,7 @@ sources = files(
   'src/app/application.cpp',
   'src/app/library.cpp',
   'src/app/main_loop.cpp',
+  'src/auth/fingerprint_authenticator.cpp',
   'src/auth/pam_authenticator.cpp',
   'src/compositors/hyprland.cpp',
   'src/compositors/keybinds.cpp',
@@ -96,6 +98,7 @@ sources = files(
   'src/dbus/mpris/mpris_art.cpp',
   'src/dbus/mpris/mpris_service.cpp',
   'src/dbus/session_bus.cpp',
+  'src/dbus/system_bus.cpp',
   'src/dbus/tray_service.cpp',
   'src/ipc/ipc.cpp',
   'src/island/calendar_pages.cpp',
@@ -109,12 +112,14 @@ sources = files(
   'src/island/ui_palette.cpp',
   'src/island/widgets.cpp',
   'src/island/wallpaper_page.cpp',
+  'src/services/idle_service.cpp',
   'src/services/media_service.cpp',
   'src/settings/settings_registry.cpp',
   'src/settings/settings_window.cpp',
   'src/services/notification_service.cpp',
   'src/services/recorder_service.cpp',
   'src/services/wallpaper_service.cpp',
+  'src/system/day_night_schedule.cpp',
   'src/system/desktop_entry.cpp',
   'src/system/desktop_entry_launch.cpp',
   'src/system/freedesktop_key_file.cpp',
@@ -122,7 +127,9 @@ sources = files(
   'src/system/process.cpp',
   'src/system/terminal_launch.cpp',
   'src/theme/builtin_templates.cpp',
+  'src/theme/checksum.cpp',
   'src/theme/color.cpp',
+  'src/theme/community_templates.cpp',
   'src/theme/contrast.cpp',
   'src/theme/custom_schemes.cpp',
   'src/theme/fixed_palette.cpp',

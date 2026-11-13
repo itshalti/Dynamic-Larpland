@@ -3,6 +3,7 @@
 #include "app/main_loop.h"
 #include "compositors/keybinds.h"
 #include "island/ui_palette.h"
+#include "system/day_night_schedule.h"
 #include "system/process.h"
 #include "core/log.h"
 #include "render/backend/render_backend.h"
@@ -23,6 +24,7 @@ Application::Application() {
   // Extensions must exist before connect() so the registry roundtrip binds their globals.
   m_wayland.extension<LayerShell>();
   m_wayland.extension<SessionLockManager>();
+  m_wayland.extension<IdleNotifier>();
   if (!m_wayland.connect()) {
     throw std::runtime_error("failed to connect to the Wayland display");
   }
@@ -48,7 +50,11 @@ Application::Application() {
   m_tray.setChangeCallback([this] { m_islands.onTrayChanged(); });
   m_tray.start();
   m_notifications.setChangeCallback([this] { m_islands.onNotificationsChanged(); });
-  m_notifications.setPostedCallback([this](const NotificationEntry& entry) { m_islands.onNotificationPosted(entry); });
+  m_notifications.setPostedCallback([this](const NotificationEntry& entry) {
+    if (!(m_lockScreen.active() && m_config.config().lockscreen.dnd)) {
+      m_islands.onNotificationPosted(entry);
+    }
+  });
   m_islands.setFocusedMonitorProvider([this] { return m_hyprland.focusedMonitor(); });
   // Page actions: the power ones exist only here (behind the page's confirm), never as IPC actions.
   m_islands.setActionHandler([this](const std::string& action) {
@@ -65,8 +71,22 @@ Application::Application() {
     m_islands.onWallpapersChanged();
   });
   keybinds::writeHyprland(m_config.config());
+  m_idle = std::make_unique<IdleService>(
+      m_wayland, m_config,
+      IdleService::Actions{
+          .lock = [this] { handleAction("lock"); },
+          .mediaPlaying = [this] { return m_media.playing(); },
+      }
+  );
+  m_communityTemplates.setReadyCallback([this] { m_settings.refresh(); });
+  syncCommunityTemplates();
+  syncDayNight();
+  m_dayNightTimer.startRepeating(std::chrono::minutes(1), [this] { syncDayNight(); });
   m_config.setChangeCallback([this] {
     keybinds::writeHyprland(m_config.config());
+    m_idle->reload();
+    syncCommunityTemplates();
+    syncDayNight();
     m_islands.onConfigChanged();
     m_wallpapers.onConfigChanged();
   });
@@ -75,7 +95,7 @@ Application::Application() {
     m_islands.onOutputsChanged();
   });
   m_launcher.initialize(m_wayland, m_renderContext, m_textures, m_icons, m_wallpapers);
-  m_lockScreen.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers, m_config);
+  m_lockScreen.initialize(m_wayland, m_renderContext, m_textures, m_wallpapers, m_config, &m_systemBus);
   m_settings.initialize(m_wayland, m_renderContext, m_config, m_wallpapers, m_notifications);
   m_wayland.setKeyboardFocusCallback([this](wl_surface* surface, bool entered) {
     m_keyboardFocus = entered ? surface : (m_keyboardFocus == surface ? nullptr : m_keyboardFocus);
@@ -113,7 +133,7 @@ std::string Application::handleAction(const std::string& action) {
     m_islands.toggleMode(action);
   } else if (action == "lock") {
     m_launcher.close();
-    m_lockScreen.lock();
+    m_lockScreen.lock(m_islands.targetConnector());
   } else if (action == "dnd") {
     m_config.set("notifications.dnd", toml::value<bool>(!m_config.config().notifications.dnd));
   } else if (action.starts_with("settings ")) {
@@ -138,6 +158,30 @@ std::string Application::handleAction(const std::string& action) {
   return "ok";
 }
 
+void Application::syncCommunityTemplates() {
+  // Downloads the catalog and the selected templates into the cache (a no-op when switched off).
+  const auto& theme = m_config.config().theme;
+  m_communityTemplates.sync({.enableCommunityTemplates = theme.communityTemplates, .communityIds = theme.community});
+}
+
+void Application::syncDayNight() {
+  const auto& cfg = m_config.config();
+  const bool configured = cfg.location.customSchedule || (cfg.location.latitude && cfg.location.longitude);
+  if (!cfg.theme.autoMode || !configured) {
+    return;
+  }
+  const bool night = day_night_schedule::evaluate(cfg.location, std::nullopt, std::nullopt).night;
+  const std::string mode = night ? "dark" : "light";
+  if (cfg.theme.mode == mode) {
+    return;
+  }
+  kLog.info("switching to {} mode ({})", mode, night ? "night" : "day");
+  m_config.set("theme.mode", toml::value<std::string>(mode));
+  if (!m_wallpapers.current().empty()) {
+    m_wallpapers.set(m_wallpapers.current());
+  }
+}
+
 void Application::runSystemAction(const std::string& what) {
   std::vector<std::string> command;
   if (what == "poweroff") {
@@ -157,7 +201,7 @@ void Application::runSystemAction(const std::string& what) {
 }
 
 void Application::run() {
-  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config, &m_textures, &m_sessionBusSource, &m_httpSource, &m_hyprland}; });
+  MainLoop loop(m_wayland, [this] { return std::vector<PollSource*>{&m_timers, &m_deferred, &m_ipc, &m_config, &m_textures, &m_sessionBusSource, &m_systemBusSource, &m_httpSource, &m_hyprland}; });
   kLog.info("running");
   loop.run();
 }

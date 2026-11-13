@@ -27,6 +27,14 @@ int main() {
   // reset of one path leaves the others alone
   assert(config.config().theme.mode == "light");
 
+  // Optional values with no default: set, then reset removes them again.
+  config.set("location.latitude", toml::value<double>(52.52));
+  assert(config.config().location.latitude == 52.52);
+  assert(config.overridden("location.latitude"));
+  config.reset("location.latitude");
+  assert(!config.config().location.latitude.has_value());
+  assert(!config.overridden("location.latitude"));
+
   // Saved to disk: a fresh service reads the same values.
   ConfigService reloaded;
   assert(reloaded.config().theme.mode == "light");

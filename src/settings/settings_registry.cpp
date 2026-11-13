@@ -12,6 +12,8 @@ namespace settings {
         {"notifications", "Notifications", "bell"},
         {"calendar", "Calendar", "calendar"},
         {"recorder", "Recorder", "video"},
+        {"lockscreen", "Lock screen", "lock"},
+        {"location", "Location", "map-pin"},
         {"power", "Power", "power"},
     };
     return list;
@@ -29,6 +31,8 @@ namespace settings {
         {.section = "appearance", .group = "Colors", .path = "theme.mode", .title = "Mode",
          .description = "Palette variant used for the island accent and the app templates.", .kind = Kind::Select,
          .options = {{"dark", "Dark"}, {"light", "Light"}}},
+        {.section = "appearance", .group = "Colors", .path = "theme.auto_mode", .title = "Switch automatically",
+         .description = "Light from sunrise to sunset, dark at night (set your location).", .kind = Kind::Toggle},
 
         // Wallpaper
         {.section = "wallpaper", .group = "Wallpaper", .path = "wallpaper.dir", .title = "Wallpaper folder",
@@ -42,6 +46,13 @@ namespace settings {
          .kind = Kind::Toggle},
         {.section = "templates", .group = "Built-in", .path = "theme.templates", .title = "Built-in templates",
          .description = "Apps recolored from the wallpaper palette.", .kind = Kind::Custom, .id = "template-grid"},
+
+        {.section = "templates", .group = "Community", .path = "theme.community_templates",
+         .title = "Enable community templates",
+         .description = "Templates made by the community (Noctalia's catalog), downloaded when selected.",
+         .kind = Kind::Toggle},
+        {.section = "templates", .group = "Community", .path = "theme.community", .title = "Community templates",
+         .description = "Apps recolored by community templates.", .kind = Kind::Custom, .id = "community-grid"},
 
         // Island
         {.section = "island", .group = "Behaviour", .path = "island.hover_expand", .title = "Expand on hover",
@@ -92,7 +103,51 @@ namespace settings {
          .options = {{"default_output", "Desktop audio"}, {"default_input", "Microphone"},
                      {"default_output|default_input", "Desktop + microphone"}, {"", "No audio"}}},
 
+        // Lock screen
+        {.section = "lockscreen", .group = "Lock screen", .path = "lockscreen.wallpaper", .title = "Lock wallpaper",
+         .description = "Image path; empty uses the desktop wallpaper.", .kind = Kind::Text},
+        {.section = "lockscreen", .group = "Lock screen", .path = "lockscreen.monitors", .title = "Show on",
+         .description = "Monitors with the clock and the password field; the others stay black.",
+         .kind = Kind::Select, .options = {{"all", "All monitors"}, {"focused", "Focused monitor"}}},
+        {.section = "lockscreen", .group = "Lock screen", .path = "lockscreen.dnd", .title = "Do not disturb while locked",
+         .description = "No notification popups while the screen is locked.", .kind = Kind::Toggle},
+        {.section = "lockscreen", .group = "Unlock", .path = "lockscreen.fingerprint", .title = "Fingerprint",
+         .description = "Also unlock with the fingerprint reader (needs fprintd and an enrolled finger).",
+         .kind = Kind::Toggle},
+
+        // Location
+        {.section = "location", .group = "Location", .path = "location.latitude", .title = "Latitude",
+         .description = "Decimal degrees, north positive (52.52).", .kind = Kind::Text, .numberValue = true},
+        {.section = "location", .group = "Location", .path = "location.longitude", .title = "Longitude",
+         .description = "Decimal degrees, east positive (13.40).", .kind = Kind::Text, .numberValue = true},
+        {.section = "location", .group = "Location", .title = "Day and night", .kind = Kind::Custom,
+         .id = "sun-times"},
+        {.section = "location", .group = "Fixed schedule", .path = "location.custom_schedule",
+         .title = "Use fixed times", .description = "Ignore the location and switch at the times below.",
+         .kind = Kind::Toggle, .advanced = true},
+        {.section = "location", .group = "Fixed schedule", .path = "location.sunrise", .title = "Day starts at",
+         .description = "HH:MM", .kind = Kind::Text, .advanced = true},
+        {.section = "location", .group = "Fixed schedule", .path = "location.sunset", .title = "Night starts at",
+         .description = "HH:MM", .kind = Kind::Text, .advanced = true},
+
         // Power
+        {.section = "power", .group = "When idle", .path = "idle.lock_enabled", .title = "Lock the screen",
+         .description = "Lock after a while without keyboard or mouse input.", .kind = Kind::Toggle},
+        {.section = "power", .group = "When idle", .path = "idle.lock_timeout_s", .title = "Lock after",
+         .kind = Kind::Slider, .min = 60, .max = 3600, .step = 60, .unitFormat = "{:.0f} min",
+         .displayScale = 60.0},
+        {.section = "power", .group = "When idle", .path = "idle.screen_off_enabled", .title = "Turn screens off",
+         .description = "They come back on with the next input (Hyprland).", .kind = Kind::Toggle},
+        {.section = "power", .group = "When idle", .path = "idle.screen_off_timeout_s", .title = "Screens off after",
+         .kind = Kind::Slider, .min = 60, .max = 3600, .step = 60, .unitFormat = "{:.0f} min",
+         .displayScale = 60.0},
+        {.section = "power", .group = "When idle", .path = "idle.suspend_enabled", .title = "Lock and suspend",
+         .kind = Kind::Toggle},
+        {.section = "power", .group = "When idle", .path = "idle.suspend_timeout_s", .title = "Suspend after",
+         .kind = Kind::Slider, .min = 300, .max = 7200, .step = 300, .unitFormat = "{:.0f} min",
+         .displayScale = 60.0},
+        {.section = "power", .group = "When idle", .path = "idle.inhibit_while_playing",
+         .title = "Stay awake while media plays", .kind = Kind::Toggle, .advanced = true},
         {.section = "power", .group = "Power", .title = "Power actions", .kind = Kind::Custom, .id = "power-info"},
     };
     return list;

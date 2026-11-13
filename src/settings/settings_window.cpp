@@ -11,7 +11,9 @@
 #include "services/notification_service.h"
 #include "services/wallpaper_service.h"
 #include "settings/settings_registry.h"
+#include "system/day_night_schedule.h"
 #include "theme/builtin_templates.h"
+#include "theme/community_templates.h"
 #include "ui/controls/box.h"
 #include "ui/controls/button.h"
 #include "ui/controls/checkbox.h"
@@ -465,7 +467,7 @@ std::unique_ptr<Node> SettingsWindow::buildPage() {
 
 void SettingsWindow::afterChange(const std::string& path) {
   // Theme options re-run the palette + templates for the current wallpaper.
-  if (path.starts_with("theme.") && !m_wallpapers->current().empty()) {
+  if (path.starts_with("theme.") && path != "theme.auto_mode" && !m_wallpapers->current().empty()) {
     m_wallpapers->set(m_wallpapers->current());
   }
   requestRefresh();
@@ -585,10 +587,34 @@ void SettingsWindow::buildRow(Flex& cardNode, const settings::Setting& setting) 
   }
   case settings::Kind::Text: {
     auto input = std::make_unique<Input>();
-    input->setValue(node.value_or(std::string()));
+    if (setting.numberValue) {
+      const auto number = node.value<double>();
+      input->setValue(number ? std::format("{}", *number) : std::string());
+    } else {
+      input->setValue(node.value_or(std::string()));
+    }
     input->setSize(kControlWidth, 0.0F);
-    input->setOnSubmit([this, path](const std::string& value) {
-      if (!value.empty()) {
+    auto* inputPtr = input.get();
+    input->setOnSubmit([this, path, inputPtr, number = setting.numberValue](const std::string& value) {
+      if (number) {
+        // "" clears the value; anything else must parse as a number.
+        if (value.empty()) {
+          m_config->reset(path);
+        } else {
+          try {
+            std::size_t used = 0;
+            const double parsed = std::stod(value, &used);
+            if (used != value.size()) {
+              throw std::invalid_argument(value);
+            }
+            m_config->set(path, toml::value<double>(parsed));
+          } catch (const std::exception&) {
+            inputPtr->setInvalid(true);
+            return;
+          }
+        }
+        afterChange(path);
+      } else if (!value.empty()) {
         m_config->set(path, toml::value<std::string>(value));
         afterChange(path);
       }
@@ -626,12 +652,29 @@ void SettingsWindow::buildCustom(Flex& cardNode, const settings::Setting& settin
                              theme::smallFontSize, theme::textSecondary);
     current->setMaxWidth(kControlWidth + 80.0F);
     labelRow(setting.title, std::move(current));
-  } else if (setting.id == "template-grid") {
-    // Tiles (checkbox + name + category), like Noctalia's.
+  } else if (setting.id == "template-grid" || setting.id == "community-grid") {
+    // Tiles (checkbox + name + category), like Noctalia's Built-In / Community tabs.
+    const bool community = setting.id == "community-grid";
+    std::vector<std::pair<std::string, std::pair<std::string, std::string>>> entries;
+    if (community) {
+      for (const auto& t : noctalia::theme::CommunityTemplateService::availableTemplates()) {
+        entries.push_back({t.id, {t.displayName.empty() ? t.id : t.displayName, t.category}});
+      }
+    } else {
+      for (const auto& info : noctalia::theme::loadBuiltinTemplateInfo()) {
+        entries.push_back({info.id, {info.name, info.category}});
+      }
+    }
+    const auto& selected = community ? cfg.theme.community : cfg.theme.templates;
+    if (entries.empty()) {
+      cardNode.addChild(makeLabel(cfg.theme.communityTemplates ? "Downloading the catalog..."
+                                                               : "Enable community templates to see the catalog.",
+                                  theme::smallFontSize, theme::textTertiary));
+    }
     auto grid = makeFlex(FlexDirection::Horizontal, 10.0F);
     grid->setWrap(true);
-    for (const auto& info : noctalia::theme::loadBuiltinTemplateInfo()) {
-      const bool enabled = std::ranges::contains(cfg.theme.templates, info.id);
+    for (const auto& [id, meta] : entries) {
+      const bool enabled = std::ranges::contains(selected, id);
       auto tile = makeFlex(FlexDirection::Horizontal, 10.0F);
       tile->setAlign(FlexAlign::Center);
       tile->setPadding(10.0F, 12.0F, 10.0F, 12.0F);
@@ -642,8 +685,9 @@ void SettingsWindow::buildCustom(Flex& cardNode, const settings::Setting& settin
       tile->setBorder(theme::divider, 1.0F);
       auto check = std::make_unique<Checkbox>();
       check->setChecked(enabled);
-      check->setOnChange([this, id = info.id](bool on) {
-        auto& list = m_config->mutableConfig().theme.templates;
+      check->setOnChange([this, id = id, community](bool on) {
+        auto& theme = m_config->mutableConfig().theme;
+        auto& list = community ? theme.community : theme.templates;
         std::erase(list, id);
         if (on) {
           list.push_back(id);
@@ -654,13 +698,15 @@ void SettingsWindow::buildCustom(Flex& cardNode, const settings::Setting& settin
       tile->addChild(std::move(check));
       auto text = makeFlex(FlexDirection::Vertical, 1.0F);
       text->setAlign(FlexAlign::Start);
-      text->addChild(makeLabel(info.name, theme::bodyFontSize - 1.0F, theme::textPrimary));
-      text->addChild(makeLabel(info.category, theme::tinyFontSize, theme::textSecondary));
+      auto name = makeLabel(meta.first, theme::bodyFontSize - 1.0F, theme::textPrimary);
+      name->setMaxWidth(140.0F);
+      text->addChild(std::move(name));
+      text->addChild(makeLabel(meta.second, theme::tinyFontSize, theme::textSecondary));
       tile->addChild(std::move(text));
       grid->addChild(std::move(tile));
     }
     cardNode.addChild(std::move(grid));
-    if (!cfg.wallpaper.current.empty()) {
+    if (!community && !cfg.wallpaper.current.empty()) {
       auto apply = std::make_unique<Button>();
       apply->setText("Apply now");
       apply->setVariant(ButtonVariant::Secondary);
@@ -763,6 +809,16 @@ void SettingsWindow::buildCustom(Flex& cardNode, const settings::Setting& settin
       controls->addChild(std::move(add));
       labelRow("New rule", std::move(controls));
     }
+  } else if (setting.id == "sun-times") {
+    const auto& location = cfg.location;
+    std::string text = "Set a latitude and longitude (or fixed times) to switch by the sun.";
+    if (location.customSchedule || (location.latitude && location.longitude)) {
+      const auto eval = day_night_schedule::evaluate(location, std::nullopt, std::nullopt);
+      const auto minutes = std::chrono::duration_cast<std::chrono::minutes>(eval.untilBoundary).count();
+      text = std::format("Now: {}. Next switch in {} h {} min.", eval.night ? "night" : "day", minutes / 60,
+                         minutes % 60);
+    }
+    labelRow(setting.title, {}, text);
   } else if (setting.id == "power-info") {
     cardNode.addChild(makeLabel("Shut down, reboot and reboot to UEFI on the power page need a second click.",
                                 theme::smallFontSize, theme::textSecondary));

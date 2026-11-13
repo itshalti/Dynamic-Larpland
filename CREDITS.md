@@ -16,7 +16,9 @@ Dynamic-Larpland's native (C++) version is built on code from
   `src/dbus/tray_service.*`, `src/net/` (HTTP client for remote cover art), `src/system/icon_resolver.*`
   (plus a `DYNAMIC_LARPLAND_ICON_THEME` override), `src/system/freedesktop_key_file.*` — from Noctalia.
 - `src/system/desktop_entry*`, `src/system/terminal_launch.*`, `src/launcher/fuzzy_match.*`,
-  `src/auth/pam_authenticator.*` (i18n strings replaced) — from Noctalia; `third_party/fzy/` (MIT), as vendored
+  `src/auth/pam_authenticator.*` and `src/auth/fingerprint_authenticator.*` (i18n strings replaced),
+  `src/dbus/system_bus.*`, `src/system/day_night_schedule.*`, `src/theme/community_templates.*` and
+  `src/theme/checksum.*` (decoupled from Noctalia's config types) — from Noctalia; `third_party/fzy/` (MIT), as vendored
   by Noctalia.
 - `assets/templates/` — Noctalia's built-in app template catalog, output files renamed from `noctalia.*` to
   `dynamic-larpland.*`.

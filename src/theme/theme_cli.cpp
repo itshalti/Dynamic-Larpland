@@ -1,6 +1,8 @@
 #include "theme/theme_cli.h"
 
 #include "core/files/resource_paths.h"
+#include "config/toml.h"
+#include "theme/community_templates.h"
 #include "theme/image_loader.h"
 #include "theme/json_output.h"
 #include "theme/palette.h"
@@ -9,6 +11,7 @@
 #include "theme/template_engine.h"
 
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <ranges>
 #include <string>
@@ -27,6 +30,7 @@ Generate a color palette from an image (Material You and custom schemes).
   --dark | --light    print only that variant (default: both)
   -o <file>           write the JSON to a file instead of stdout (also works with --apply)
   --apply <ids>       render the given built-in templates (comma separated: gtk3,gtk4,kitty,hyprland,...)
+  --community <ids>   render the given downloaded community templates (comma separated)
   --mode <dark|light> mode the templates use (default: dark)
 )";
 
@@ -39,6 +43,7 @@ int runThemeCli(int argc, char** argv) {
   Variant variant = Variant::Both;
   std::string outFile;
   std::string apply;
+  std::string community;
   std::string mode = "dark";
 
   for (int i = 2; i < argc; ++i) {
@@ -70,6 +75,8 @@ int runThemeCli(int argc, char** argv) {
       outFile = next();
     } else if (arg == "--apply") {
       apply = next();
+    } else if (arg == "--community") {
+      community = next();
     } else if (arg == "--mode") {
       mode = next();
     } else if (image.empty() && !arg.starts_with("-")) {
@@ -102,21 +109,49 @@ int runThemeCli(int argc, char** argv) {
   if (!outFile.empty()) {
     std::ofstream(outFile, std::ios::trunc) << toJson(*palette, scheme, variant) << "\n";
   }
-  if (!apply.empty()) {
+  if (!apply.empty() || !community.empty()) {
     TemplateEngine::Options options;
     options.defaultMode = mode;
     options.imagePath = image;
     options.schemeType = schemeName.starts_with("m3-") ? schemeName.substr(3) : schemeName;
-    for (const auto id : std::views::split(apply, ',')) {
-      options.enabledTemplates.emplace(std::string_view(id));
+    int failures = 0;
+    if (!apply.empty()) {
+      TemplateEngine::Options builtin = options;
+      for (const auto id : std::views::split(apply, ',')) {
+        builtin.enabledTemplates.emplace(std::string_view(id));
+      }
+      TemplateEngine engine(TemplateEngine::makeThemeData(*palette), std::move(builtin));
+      const auto catalog = paths::assetPath("templates/builtin.toml");
+      if (!engine.processConfigFile(catalog)) {
+        std::fprintf(stderr, "applying templates from %s failed\n", catalog.c_str());
+        ++failures;
+      }
     }
-    TemplateEngine engine(TemplateEngine::makeThemeData(*palette), std::move(options));
-    const auto catalog = paths::assetPath("templates/builtin.toml");
-    if (!engine.processConfigFile(catalog)) {
-      std::fprintf(stderr, "applying templates from %s failed\n", catalog.c_str());
-      return 1;
+    // Community templates come from the cache CommunityTemplateService fills (each has its own config).
+    for (const auto part : std::views::split(community, ',')) {
+      const std::string id{std::string_view(part)};
+      if (!isSafeCommunityTemplateId(id)) {
+        std::fprintf(stderr, "skipping unsafe community template id '%s'\n", id.c_str());
+        continue;
+      }
+      const auto path = communityTemplateConfigPath(id);
+      if (!std::filesystem::exists(path)) {
+        std::fprintf(stderr, "community template '%s' is not downloaded yet\n", id.c_str());
+        continue;
+      }
+      try {
+        const toml::table root = toml::parse_file(path.string());
+        TemplateEngine engine(TemplateEngine::makeThemeData(*palette), options);
+        if (!engine.processConfigTable(root, path)) {
+          std::fprintf(stderr, "applying community template '%s' failed\n", id.c_str());
+          ++failures;
+        }
+      } catch (const toml::parse_error& e) {
+        std::fprintf(stderr, "%s: %s\n", path.c_str(), e.what());
+        ++failures;
+      }
     }
-    return 0;
+    return failures == 0 ? 0 : 1;
   }
 
   if (outFile.empty()) {
