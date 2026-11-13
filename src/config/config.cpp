@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <toml++/toml.hpp>
+#include <ranges>
 
 namespace {
 
@@ -17,6 +17,10 @@ namespace {
     toml::array templates;
     for (const auto& id : c.theme.templates) {
       templates.push_back(id);
+    }
+    toml::array rules;
+    for (const auto& rule : c.notifications.rules) {
+      rules.push_back(toml::table{{"app", rule.app}, {"action", rule.action}});
     }
     toml::table binds;
     for (const auto& [action, keys] : c.keybinds) {
@@ -37,6 +41,8 @@ namespace {
          toml::table{
              {"history_limit", c.notifications.historyLimit},
              {"popup_timeout_ms", c.notifications.popupTimeoutMs},
+             {"dnd", c.notifications.dnd},
+             {"rules", rules},
          }},
         {"theme",
          toml::table{
@@ -73,6 +79,15 @@ namespace {
     const auto notifications = t["notifications"];
     c.notifications.historyLimit = notifications["history_limit"].value_or(c.notifications.historyLimit);
     c.notifications.popupTimeoutMs = notifications["popup_timeout_ms"].value_or(c.notifications.popupTimeoutMs);
+    c.notifications.dnd = notifications["dnd"].value_or(c.notifications.dnd);
+    if (const auto* rules = notifications["rules"].as_array()) {
+      for (const auto& node : *rules) {
+        if (const auto* rule = node.as_table(); rule != nullptr && (*rule)["app"].is_string()) {
+          c.notifications.rules.push_back({(*rule)["app"].value_or(std::string()),
+                                           (*rule)["action"].value_or(std::string("mute"))});
+        }
+      }
+    }
     const auto theme = t["theme"];
     c.theme.scheme = theme["scheme"].value_or(c.theme.scheme);
     c.theme.mode = theme["mode"].value_or(c.theme.mode);
@@ -90,7 +105,47 @@ namespace {
     return c;
   }
 
+  // Writes a copy of `value` at a dotted path, creating the tables on the way.
+  void assignAt(toml::table& root, std::string_view path, const toml::node& value) {
+    toml::table* table = &root;
+    auto parts = std::views::split(path, '.') | std::ranges::to<std::vector<std::string>>();
+    for (std::size_t i = 0; i + 1 < parts.size(); ++i) {
+      auto* next = (*table)[parts[i]].as_table();
+      if (next == nullptr) {
+        table->insert_or_assign(parts[i], toml::table{});
+        next = (*table)[parts[i]].as_table();
+      }
+      table = next;
+    }
+    value.visit([&](const auto& v) { table->insert_or_assign(parts.back(), v); });
+  }
+
 } // namespace
+
+toml::table ConfigService::asTable() const { return toTable(m_config); }
+
+const toml::table& ConfigService::defaults() {
+  static const toml::table table = toTable(Config{});
+  return table;
+}
+
+void ConfigService::set(std::string_view path, const toml::node& value) {
+  toml::table table = asTable();
+  assignAt(table, path, value);
+  m_config = fromTable(table);
+  save();
+}
+
+void ConfigService::reset(std::string_view path) {
+  if (const auto* def = defaults().at_path(path).node(); def != nullptr) {
+    set(path, *def);
+  }
+}
+
+bool ConfigService::overridden(std::string_view path) const {
+  const toml::table table = asTable();
+  return table.at_path(path) != defaults().at_path(path);
+}
 
 std::string ConfigService::expandHome(const std::string& path) {
   const char* home = std::getenv("HOME");

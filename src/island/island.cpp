@@ -112,7 +112,14 @@ void Islands::onOutputsChanged() {
   createInstances();
 }
 
-void Islands::onConfigChanged() { updateClock(); }
+void Islands::onConfigChanged() {
+  updateClock();
+  // DND, first day of week and other options show on the pages.
+  for (auto& inst : m_instances) {
+    rebuildPage(*inst, "expanded");
+    rebuildPage(*inst, "calendar");
+  }
+}
 
 void Islands::onMediaChanged() {
   for (auto& inst : m_instances) {
@@ -289,6 +296,7 @@ BuiltPage Islands::buildPage(Instance& inst, const std::string& mode) {
             DeferredCall::callLater([this, raw, itemId, x, y, w, h] { openTrayMenu(*raw, itemId, x, y, w, h); });
           },
       .firstDayOfWeek = m_config->config().calendar.firstDayOfWeek,
+      .dnd = m_config->config().notifications.dnd,
   };
   if (mode == "collapsed") {
     return buildCollapsedPage(ctx, m_time, inst.popup ? &*inst.popup : nullptr, size.width, size.height);

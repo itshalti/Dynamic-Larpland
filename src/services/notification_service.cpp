@@ -8,6 +8,7 @@
 #include "util/file_utils.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -143,6 +144,21 @@ std::uint32_t NotificationService::onNotify(
     const std::string& body, const std::map<std::string, sdbus::Variant>& hints
 ) {
   const std::uint32_t id = replacesId != 0 ? replacesId : m_nextId++;
+  const auto& cfg = m_config.config().notifications;
+  const std::string action = ruleFor(appName);
+  if (action == "block") {
+    // Blocked apps are acknowledged (the app gets an id) but never stored or shown.
+    return id;
+  }
+  // urgency hint: 0 low, 1 normal, 2 critical. Critical ones get through Do not disturb.
+  std::uint8_t urgency = 1;
+  if (const auto it = hints.find("urgency"); it != hints.end()) {
+    try {
+      urgency = it->second.get<std::uint8_t>();
+    } catch (const sdbus::Error&) {
+    }
+  }
+  const bool popup = action != "mute" && (!cfg.dnd || urgency >= 2);
   NotificationEntry entry{
       .id = id,
       .appName = truncate(appName),
@@ -158,11 +174,35 @@ std::uint32_t NotificationService::onNotify(
     m_history.resize(limit);
   }
   save();
-  if (m_onPosted) {
+  if (popup && m_onPosted) {
     m_onPosted(entry);
   }
   changed();
   return id;
+}
+
+std::string NotificationService::ruleFor(const std::string& appName) const {
+  const auto lower = [](std::string s) {
+    std::ranges::transform(s, s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+  };
+  const std::string app = lower(appName);
+  for (const auto& rule : m_config.config().notifications.rules) {
+    if (lower(rule.app) == app) {
+      return rule.action;
+    }
+  }
+  return {};
+}
+
+std::vector<std::string> NotificationService::knownApps() const {
+  std::vector<std::string> apps;
+  for (const auto& entry : m_history) {
+    if (!entry.appName.empty() && !std::ranges::contains(apps, entry.appName)) {
+      apps.push_back(entry.appName);
+    }
+  }
+  return apps;
 }
 
 std::string NotificationService::resolveIcon(

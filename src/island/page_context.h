@@ -35,6 +35,8 @@ struct PageContext {
   std::function<void(const std::string& itemId, float x, float y, float w, float h)> openTrayMenu;
   // 0 = Sunday, 1 = Monday (calendar.first_day_of_week).
   int firstDayOfWeek = 0;
+  // notifications.dnd
+  bool dnd = false;
 };
 
 // A built page: its scene subtree and an optional tick run a few times a second while it is shown

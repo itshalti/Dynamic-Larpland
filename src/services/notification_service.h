@@ -38,6 +38,10 @@ public:
   const std::vector<NotificationEntry>& history() const noexcept { return m_history; }
   void dismiss(std::uint32_t id);
   void clear();
+  // "mute", "block" or "" for an app name (notifications.rules).
+  std::string ruleFor(const std::string& appName) const;
+  // App names seen in the history, newest first (for the rules editor).
+  std::vector<std::string> knownApps() const;
 
   // A new (or replacing) notification arrived: shown as a live activity.
   void setPostedCallback(PostedCallback callback) { m_onPosted = std::move(callback); }

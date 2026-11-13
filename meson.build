@@ -110,6 +110,7 @@ sources = files(
   'src/island/widgets.cpp',
   'src/island/wallpaper_page.cpp',
   'src/services/media_service.cpp',
+  'src/settings/settings_registry.cpp',
   'src/settings/settings_window.cpp',
   'src/services/notification_service.cpp',
   'src/services/recorder_service.cpp',
@@ -160,3 +161,16 @@ executable('dynamic-larpland',
   ],
   install: true,
 )
+
+# Self-checks for logic that has no UI to exercise it (`meson test -C build`).
+config_test = executable('config_paths_test',
+  'tests/config_paths_test.cpp', 'src/config/config.cpp', 'src/app/library.cpp',
+  dependencies: [noctalia_ui_dep, noctalia_ui_codecs_dep, dependency('tomlplusplus')],
+  include_directories: include_directories('src'),
+  cpp_args: [
+    '-DDL_APP_ASSETS_DIR="' + (meson.current_source_dir() / 'assets') + '"',
+    '-DDL_LIB_ASSETS_DIR="' + (meson.current_source_dir() / 'lib' / 'assets') + '"',
+    '-DDL_INSTALLED_ASSETS_DIR="' + (get_option('prefix') / installed_assets) + '"',
+  ],
+)
+test('config paths', config_test, env: {'XDG_CONFIG_HOME': meson.current_build_dir() / 'test-config'})

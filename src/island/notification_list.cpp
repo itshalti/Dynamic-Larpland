@@ -44,7 +44,8 @@ void buildNotificationList(Node& parent, const PageContext& ctx, float x, float 
   column->setSize(width, height);
   auto* root = parent.addChild(std::move(column));
 
-  Label* title = widgets::label(*root, ctx.renderer, "Notifications", theme::smallFontSize, theme::textSecondary);
+  Label* title = widgets::label(*root, ctx.renderer, ctx.dnd ? "Do not disturb" : "Notifications",
+                                theme::smallFontSize, ctx.dnd ? theme::accentColor(ctx.wallpapers) : theme::textSecondary);
   title->setPosition(0.0F, (kHeaderHeight - title->height()) / 2.0F);
 
   const auto& history = ctx.notifications.history();

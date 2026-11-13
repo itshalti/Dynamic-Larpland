@@ -114,6 +114,10 @@ std::string Application::handleAction(const std::string& action) {
   } else if (action == "lock") {
     m_launcher.close();
     m_lockScreen.lock();
+  } else if (action == "dnd") {
+    m_config.set("notifications.dnd", toml::value<bool>(!m_config.config().notifications.dnd));
+  } else if (action.starts_with("settings ")) {
+    m_settings.openSection(m_islands.targetConnector(), action.substr(9));
   } else if (action == "settings") {
     m_settings.toggle(m_islands.targetConnector());
   } else if (action == "launcher") {

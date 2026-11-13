@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/inotify/inotify.h"
+#include "config/toml.h"
 #include "core/poll_source.h"
 
 #include <functional>
@@ -41,9 +42,19 @@ struct CalendarConfig {
   int firstDayOfWeek = 0;
 };
 
+struct NotificationRule {
+  // App name as the app sends it (matched case-insensitively).
+  std::string app;
+  // "mute": kept in the history, no popup. "block": dropped entirely.
+  std::string action = "mute";
+};
+
 struct NotificationsConfig {
   int historyLimit = 100;
   int popupTimeoutMs = 4000;
+  // Do not disturb: no popups (critical notifications still show); the history keeps everything.
+  bool dnd = false;
+  std::vector<NotificationRule> rules;
 };
 
 struct RecorderConfig {
@@ -79,6 +90,14 @@ public:
   // Writes the current values back to the file (settings window edits).
   void save();
   Config& mutableConfig() noexcept { return m_config; }
+  // Settings by TOML path ("island.hover_expand"), for the settings window's generic rows, search and reset.
+  toml::table asTable() const;
+  static const toml::table& defaults();
+  void set(std::string_view path, const toml::node& value);
+  // Back to the default value (or removed when the default has none). Saves.
+  void reset(std::string_view path);
+  bool overridden(std::string_view path) const;
+
   // "~/x" -> "$HOME/x".
   static std::string expandHome(const std::string& path);
 

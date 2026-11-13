@@ -10,6 +10,7 @@
 
 class ConfigService;
 class Flex;
+class Input;
 class NotificationService;
 class RenderContext;
 class SelectDropdownPopup;
@@ -18,9 +19,14 @@ class WaylandConnection;
 struct KeyboardEvent;
 struct PointerEvent;
 
+namespace settings {
+  struct Setting;
+}
+
 // Settings window: a centered island-style card (own layer surface, so it is centered on any compositor) with
-// a sidebar of sections and the selected page on the right. Every change is written to config.toml at once.
-// Esc or the close button closes it.
+// a sidebar of sections and the selected page on the right. The content comes from settings::registry(); the
+// header has Noctalia's search, Advanced and Overridden filters and Reset page. Every change is written to
+// config.toml at once. Esc or the close button closes it.
 class SettingsWindow {
 public:
   SettingsWindow();
@@ -31,6 +37,8 @@ public:
 
   bool isOpen() const noexcept { return m_surface != nullptr; }
   void toggle(const std::string& connector);
+  // Opens (or switches) to a section by id ("notifications").
+  void openSection(const std::string& connector, const std::string& section);
   void open(const std::string& connector);
   void close();
 
@@ -41,14 +49,17 @@ public:
 
 private:
   void buildScene();
-  void showPage(std::size_t index);
-  std::unique_ptr<Node> buildPage(std::size_t index);
-  void buildLookPage(Flex& page);
-  void buildIslandPage(Flex& page);
-  void buildNotificationsPage(Flex& page);
-  void buildSystemPage(Flex& page);
-  void requestRebuild();
-  void save();
+  void buildHeader(Flex& column);
+  // Rebuilds the sidebar and the page from the current section / search / filters (the header stays).
+  void refreshContent();
+  void buildSidebar();
+  std::unique_ptr<Node> buildPage();
+  bool visible(const settings::Setting& setting) const;
+  void buildRow(Flex& card, const settings::Setting& setting);
+  void buildCustom(Flex& card, const settings::Setting& setting);
+  void afterChange(const std::string& path);
+  void resetPage();
+  void requestRefresh();
 
   WaylandConnection* m_wayland = nullptr;
   RenderContext* m_renderContext = nullptr;
@@ -61,9 +72,15 @@ private:
   AnimationManager m_animations;
   InputDispatcher m_input;
   std::unique_ptr<Node> m_root;
-  Node* m_pageHost = nullptr;
-  std::size_t m_page = 0;
+  Flex* m_sidebar = nullptr;
+  Flex* m_pageHost = nullptr;
+  Input* m_search = nullptr;
+
+  std::size_t m_section = 0;
+  std::string m_query;
+  bool m_showAdvanced = false;
+  bool m_onlyOverridden = false;
   // Keybind being recorded ("" = none).
   std::string m_recording;
-  bool m_rebuildPending = false;
+  bool m_refreshPending = false;
 };
